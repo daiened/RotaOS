@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "RotaOS · Ponte do Procesa",
+  "version": "0.1.0",
+  "description": "Envia ordens selecionadas ou visíveis do Procesa para o RotaOS sem alterar o sistema da CESAMA.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://procesama.linedata.com.br/*"
+  ],
+  "action": {
+    "default_title": "RotaOS · Ponte do Procesa"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://procesama.linedata.com.br/operacoes/*"],
+      "js": ["procesa-bridge.js"],
+      "css": ["procesa-bridge.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://daiened.github.io/RotaOS/*",
+        "https://rotaos-planejamento.daieneduarte.chatgpt.site/*"
+      ],
+      "js": ["rotaos-bridge.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

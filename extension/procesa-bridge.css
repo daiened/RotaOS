@@ -1,0 +1,28 @@
+#rotaos-procesa-bridge {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2147483647;
+  width: 260px;
+  overflow: hidden;
+  color: #27293a;
+  background: #fff;
+  border: 1px solid #ddd9f4;
+  border-radius: 13px;
+  box-shadow: 0 18px 55px rgba(32, 28, 66, .24);
+  font-family: Arial, Helvetica, sans-serif;
+}
+#rotaos-procesa-bridge header { padding: 12px; display: grid; grid-template-columns: 34px 1fr 26px; align-items: center; gap: 9px; background: #f4f1ff; }
+#rotaos-procesa-bridge header > span { width: 32px; height: 32px; display: grid; place-items: center; color: #fff; background: #6e55d7; border-radius: 9px; font-weight: 900; }
+#rotaos-procesa-bridge strong, #rotaos-procesa-bridge small { display: block; }
+#rotaos-procesa-bridge strong { font-size: 12px; }
+#rotaos-procesa-bridge small { margin-top: 3px; color: #85889a; font-size: 9px; }
+#rotaos-procesa-bridge header button { border: 0; color: #6651bf; background: transparent; font-size: 18px; }
+.rotaos-bridge-body { padding: 12px; }
+.rotaos-bridge-body p { margin: 0 0 10px; color: #7d8191; font-size: 9px; }
+.rotaos-bridge-body > button { width: 100%; margin-top: 7px; padding: 9px; border: 1px solid #5f46c3; color: #fff; background: #6e55d7; border-radius: 8px; font-size: 10px; font-weight: 800; }
+.rotaos-bridge-body > button.secondary { color: #514c68; background: #fff; border-color: #dddde5; }
+.rotaos-bridge-body > button:disabled { opacity: .6; }
+#rotaos-bridge-message { min-height: 12px; margin-top: 9px; color: #2f805a; line-height: 1.35; }
+#rotaos-bridge-message.error { color: #b15242; }
+#rotaos-procesa-bridge.collapsed .rotaos-bridge-body { display: none; }
