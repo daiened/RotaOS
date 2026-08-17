@@ -6,6 +6,7 @@ const root = new URL("../", import.meta.url);
 
 test("gera o painel estático do RotaOS", async () => {
   const html = await readFile(new URL("out/index.html", root), "utf8");
+  const pageSource = await readFile(new URL("app/page.tsx", root), "utf8");
   assert.match(html, /<html lang="pt-BR"/);
   assert.match(html, /RotaOS/);
   assert.match(html, /Monte a próxima rota/);
@@ -13,7 +14,10 @@ test("gera o painel estático do RotaOS", async () => {
   assert.match(html, /Escolha o que entra na rota/);
   assert.doesNotMatch(html, /Produção das equipes/);
   assert.doesNotMatch(html, />Integrações</);
-  assert.match(html, /og-planejamento\.png/);
+  assert.match(html, /og-comparacao\.png/);
+  assert.match(pageSource, /02 · VISUAL DE COMPARAÇÃO/);
+  assert.match(pageSource, /Mapa e equipes/);
+  assert.match(pageSource, /O mapa, os quilômetros e os tempos abaixo são ilustrativos/);
 });
 
 test("mantém a ponte do Procesa somente leitura", async () => {

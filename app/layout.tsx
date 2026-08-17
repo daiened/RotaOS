@@ -21,13 +21,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: "RotaOS — Planejamento de rotas",
     description: "Importe ordens de serviço, escolha as melhores combinações e revise a rota antes de distribuir.",
-    images: [{ url: `${assetBase}/og-planejamento.png`, width: 1536, height: 1024, alt: "RotaOS — Planejamento de rotas" }],
+    images: [{ url: `${assetBase}/og-comparacao.png`, width: 1536, height: 1024, alt: "RotaOS — Planejamento e protótipo" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "RotaOS — Planejamento de rotas",
     description: "Importe ordens de serviço, escolha as melhores combinações e revise a rota antes de distribuir.",
-    images: [`${assetBase}/og-planejamento.png`],
+    images: [`${assetBase}/og-comparacao.png`],
   },
   icons: {
     icon: `${assetBase}/favicon.svg`,
