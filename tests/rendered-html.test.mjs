@@ -8,10 +8,12 @@ test("gera o painel estático do RotaOS", async () => {
   const html = await readFile(new URL("out/index.html", root), "utf8");
   assert.match(html, /<html lang="pt-BR"/);
   assert.match(html, /RotaOS/);
-  assert.match(html, /Planejamento/);
-  assert.match(html, /Produção/);
-  assert.match(html, /Integrações/);
-  assert.match(html, /og\.png/);
+  assert.match(html, /Monte a próxima rota/);
+  assert.match(html, /Importar do Procesa/);
+  assert.match(html, /Escolha o que entra na rota/);
+  assert.doesNotMatch(html, /Produção das equipes/);
+  assert.doesNotMatch(html, />Integrações</);
+  assert.match(html, /og-planejamento\.png/);
 });
 
 test("mantém a ponte do Procesa somente leitura", async () => {

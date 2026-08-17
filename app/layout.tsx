@@ -16,18 +16,18 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.GITHUB_ACTIONS ? "https://daiened.github.io/RotaOS/" : "https://rotaos-planejamento.daieneduarte.chatgpt.site/"),
-  title: "RotaOS — Rotas, produção e equipes",
-  description: "Planeje rotas, revise ordens de serviço e organize a produção das equipes em um único fluxo.",
+  title: "RotaOS — Planejamento de rotas",
+  description: "Importe ordens de serviço, escolha as melhores combinações e revise a rota antes de distribuir.",
   openGraph: {
-    title: "RotaOS — Rotas, produção e equipes",
-    description: "Planeje rotas, revise ordens de serviço e organize a produção das equipes em um único fluxo.",
-    images: [{ url: `${assetBase}/og.png`, width: 1536, height: 1024, alt: "RotaOS — Rotas, produção e equipes" }],
+    title: "RotaOS — Planejamento de rotas",
+    description: "Importe ordens de serviço, escolha as melhores combinações e revise a rota antes de distribuir.",
+    images: [{ url: `${assetBase}/og-planejamento.png`, width: 1536, height: 1024, alt: "RotaOS — Planejamento de rotas" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "RotaOS — Rotas, produção e equipes",
-    description: "Planeje rotas, revise ordens de serviço e organize a produção das equipes em um único fluxo.",
-    images: [`${assetBase}/og.png`],
+    title: "RotaOS — Planejamento de rotas",
+    description: "Importe ordens de serviço, escolha as melhores combinações e revise a rota antes de distribuir.",
+    images: [`${assetBase}/og-planejamento.png`],
   },
   icons: {
     icon: `${assetBase}/favicon.svg`,

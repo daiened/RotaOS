@@ -1,20 +1,21 @@
 # RotaOS
 
-Planejamento de rotas, revisão de Ordens de Serviço e acompanhamento da produção das equipes.
+Protótipo focado em planejamento e revisão de rotas de Ordens de Serviço.
 
 ## O que já funciona
 
-- revisão da rota real usada na validação;
 - recebimento de OS selecionadas ou visíveis no Procesa pela extensão local;
 - leitura dos detalhes disponíveis no modo de impressão;
 - agrupamento de OS que têm o mesmo endereço;
-- importação de relatório de produção em XLSX, XLS ou CSV;
-- classificação assistida e estimativa de valores;
-- exportação da atualização em CSV;
-- sincronização opcional com uma cópia de teste do Google Sheets;
+- seleção e filtros simples por serviço e alertas;
+- organização inicial por endereço e bairro;
+- revisão da sequência e dos pontos que pedem atenção;
+- exportação de um resumo da rota;
 - preparação do resumo da rota para WhatsApp.
 
 A extensão é inicialmente somente leitura: ela não guarda login/senha e não distribui OS no Procesa.
+
+Produção, custos e ganhos estão fora da interface enquanto o módulo de planejamento é validado.
 
 ## Desenvolvimento
 
@@ -32,4 +33,4 @@ pnpm build
 node --test tests/rendered-html.test.mjs
 ```
 
-As instruções da extensão estão em `extension/README.md`. O conector de teste da planilha está em `integration/google-apps-script/README.md`.
+As instruções da extensão estão em `extension/README.md`.
