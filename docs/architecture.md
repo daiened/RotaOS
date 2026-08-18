@@ -33,3 +33,7 @@ Procesa autenticado
 ## Consultas do grid
 
 Filtros, ordenação e paginação devem ser executados no banco quando a conexão online estiver ativa. A interface DEV atual reproduz esse comportamento em memória para validar a experiência antes da integração definitiva.
+
+## Futuro: contas e central de manutenção
+
+Quando o RotaOS estiver pronto para múltiplos clientes, a autenticação deverá separar cada empresa em seu próprio espaço de dados. O escopo previsto inclui perfil do usuário (nome, e-mail, foto e preferências), área de cadastro/configuração da empresa, canal de suporte com a central e uma área administrativa exclusiva da manutenção para acompanhar usuários e mensagens. Esse módulo só será ativado depois da sincronização e do planejamento estarem estáveis; não deve ser misturado ao fluxo inicial da Camilla.
