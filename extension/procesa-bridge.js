@@ -50,21 +50,31 @@
   }
 
   function selectedRows() {
-    return dataRows().filter((row) => row.checkbox?.checked);
+    return supportedRows().filter((row) => row.checkbox?.checked);
+  }
+
+  function supportedRows() {
+    return dataRows().filter((row) => /(^|\s)S0?25(?:\s|$)|(^|\s)S200(?:\s|$)|(^|\s)S201(?:\s|$)/i.test(`${row.requestedService} ${row.serviceType}`));
   }
 
   function rowSignature() {
-    return dataRows().map((row) => row.occurrence).join("|");
+    return supportedRows().map((row) => row.occurrence).join("|");
   }
 
-  function detailFromSection(section) {
+  function metadataFromSection(section) {
     const priority = section.match(/PRIORIDADE:\s*\n([\s\S]*?)\nDADOS DE BAIXA/)?.[1]
       ?.split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
       .filter((line) => !/^<=?\s*\d+\s*DIAS?$/i.test(line));
     const returnNote = section.match(/OBSERVAÇÃO DE DEVOLUÇÃO\s*\n([\s\S]*?)\nOBSERVAÇÃO DE CANCELAMENTO/)?.[1]?.trim();
-    return priority?.join(" · ") || returnNote || "Detalhe ainda não identificado";
+    const complaintLines = section.split("\n").filter((line) => /RECLAMA(?:ÇÃO|COES|ÇÕES)|RETORNO DO CLIENTE/i.test(line));
+    const complaintDates = complaintLines.flatMap((line) => line.match(/\d{2}\/\d{2}\/\d{4}/g) || []);
+    return {
+      detail: priority?.join(" · ") || returnNote || "Detalhe ainda não identificado",
+      complaintCount: complaintLines.length,
+      latestComplaintAt: complaintDates.at(-1) || "",
+    };
   }
 
   async function enrichDetails(rows) {
@@ -76,8 +86,13 @@
       const html = await response.text();
       const text = new DOMParser().parseFromString(html, "text/html").body.innerText;
       const sections = text.split(/(?=N°:\s*\d+\/\d+\/\d+)/).filter((section) => /^N°:\s*\d/m.test(section));
-      const details = new Map(sections.map((section) => [section.match(/^N°:\s*([^\n]+)/m)?.[1]?.trim(), detailFromSection(section)]));
-      return rows.map((row) => ({ ...row, detail: details.get(row.occurrence) || "Detalhe ainda não identificado" }));
+      const details = new Map(sections.map((section) => [section.match(/^N°:\s*([^\n]+)/m)?.[1]?.trim(), metadataFromSection(section)]));
+      return rows.map((row) => ({
+        ...row,
+        detail: details.get(row.occurrence)?.detail || "Detalhe ainda não identificado",
+        complaintCount: details.get(row.occurrence)?.complaintCount || 0,
+        latestComplaintAt: details.get(row.occurrence)?.latestComplaintAt || "",
+      }));
     } catch {
       return rows;
     }
@@ -96,6 +111,8 @@
       team: row.team,
       serviceType: row.serviceType,
       detail: row.detail,
+      complaintCount: row.complaintCount || 0,
+      latestComplaintAt: row.latestComplaintAt || "",
     };
   }
 
@@ -128,7 +145,7 @@
   }
 
   async function sendRows(mode) {
-    const rows = mode === "selected" ? selectedRows() : dataRows();
+    const rows = mode === "selected" ? selectedRows() : supportedRows();
     if (!rows.length) {
       showMessage(mode === "selected" ? "Selecione ao menos uma OS." : "Nenhuma OS visível foi encontrada.", true);
       return;
@@ -177,7 +194,7 @@
       showMessage("A coleta parou no limite de 100 páginas. Abra a base acumulada para revisar.", true);
       return;
     }
-    const rows = dataRows();
+    const rows = supportedRows();
     if (!rows.length) {
       showMessage("A tabela ainda não carregou. Tentando novamente…");
       window.setTimeout(continueAutoSync, 1500);
@@ -226,8 +243,9 @@
   function updateCounter(accumulated) {
     const selected = selectedRows().length;
     const visible = dataRows().length;
+    const supported = supportedRows().length;
     const counter = document.getElementById("rotaos-bridge-counter");
-    if (counter) counter.textContent = `${visible} visíveis · ${selected} marcadas · ${accumulated || 0} acumuladas`;
+    if (counter) counter.textContent = `${supported} atendidas de ${visible} visíveis · ${selected} marcadas · ${accumulated || 0} acumuladas`;
   }
 
   function showMessage(text, error = false) {
@@ -243,7 +261,7 @@
   panel.innerHTML = `
     <header><span>R</span><div><strong>Sincronizar com RotaOS</strong><small id="rotaos-bridge-counter">Lendo OS…</small></div><button id="rotaos-bridge-collapse" aria-label="Recolher">−</button></header>
     <div class="rotaos-bridge-body">
-      <p>Somente leitura. Nada será distribuído no Procesa.</p>
+      <p>Somente S025, S200 e S201. Nada será distribuído no Procesa.</p>
       <button data-action id="rotaos-send-selected">Enviar selecionadas</button>
       <button data-action id="rotaos-sync-pages" class="secondary">Todas as páginas do filtro</button>
       <button data-action id="rotaos-open-session" class="secondary">Abrir base acumulada</button>

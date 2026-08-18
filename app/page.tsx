@@ -13,9 +13,12 @@ import {
   type StoredOrder,
 } from "../lib/supabase";
 
-type Service = "Passeio" | "Muro" | "Vistoria";
+type Service = "Passeio" | "Muro" | "Caixa Padrão";
+type ServiceCode = "S201 X" | "S200 X" | "S025";
 type SyncState = "new" | "updated" | "complaint" | "reviewed" | "not_seen" | "archived";
-type Modal = "import" | "teams" | "rules" | "login" | null;
+type SortKey = "selected" | "date" | "complaints" | "service" | "location" | "suggestion" | "state";
+type SortDirection = "asc" | "desc";
+type Modal = "import" | "teams" | "rules" | "login" | "suggestion" | null;
 
 type WorkOrder = {
   internalId: string;
@@ -25,13 +28,14 @@ type WorkOrder = {
   region: string;
   requestedAt: string;
   service: Service;
+  serviceCode: ServiceCode;
   detail: string;
-  deadlineDays: number;
   syncState: SyncState;
+  complaintCount: number;
+  latestComplaintAt?: string;
   sourceHash: string;
   lastSeenAt: string;
   changedAt?: string;
-  complaintAt?: string;
 };
 
 type TeamConfig = {
@@ -43,63 +47,52 @@ type TeamConfig = {
   capacity: number;
 };
 
-type SuggestionRules = {
-  complaints: boolean;
-  deadlines: boolean;
-  changes: boolean;
-  sameAddress: boolean;
-  recent: boolean;
-};
-
-const nowIso = "2026-08-17T12:00:00.000Z";
+type SuggestionRules = { complaints: boolean; recent: boolean };
 
 const initialTeams: TeamConfig[] = [
   { id: "team-1", name: "Construpav 01", color: "#7457d9", active: true, services: ["Passeio", "Muro"], capacity: 6 },
-  { id: "team-2", name: "Construpav 02", color: "#ee8d48", active: true, services: ["Passeio", "Muro"], capacity: 6 },
-  { id: "team-3", name: "Construpav 03", color: "#2f99ac", active: true, services: ["Passeio", "Muro", "Vistoria"], capacity: 5 },
+  { id: "team-2", name: "Construpav 02", color: "#ee8d48", active: true, services: ["Passeio", "Muro", "Caixa Padrão"], capacity: 6 },
+  { id: "team-3", name: "Construpav 03", color: "#2f99ac", active: true, services: ["Passeio", "Muro", "Caixa Padrão"], capacity: 5 },
 ];
 
-const initialRules: SuggestionRules = {
-  complaints: true,
-  deadlines: true,
-  changes: true,
-  sameAddress: true,
-  recent: true,
-};
+const initialRules: SuggestionRules = { complaints: true, recent: true };
+const referenceNow = new Date("2026-08-18T12:00:00-03:00").getTime();
 
 const orderSeeds: Omit<WorkOrder, "sourceHash">[] = [
-  { internalId: "3025075", id: "24936/2026/3", address: "R. Maria do Carmo Costa, 262", neighborhood: "Santa Cruz", region: "Norte", requestedAt: "16/08/2026 09:10", service: "Muro", detail: "Muro com acabamento a confirmar", deadlineDays: 2, syncState: "new", lastSeenAt: nowIso },
-  { internalId: "3025078", id: "24936/2026/4", address: "R. Maria do Carmo Costa, 262", neighborhood: "Santa Cruz", region: "Norte", requestedAt: "16/08/2026 09:10", service: "Passeio", detail: "Acabamento cimentado · mesmo local da OS 24936/2026/3", deadlineDays: 2, syncState: "new", lastSeenAt: nowIso },
-  { internalId: "3030611", id: "36171/2026/2", address: "R. Bartolomeu dos Santos, 2", neighborhood: "São Damião", region: "Norte", requestedAt: "15/08/2026 14:20", service: "Passeio", detail: "Repor meio-fio", deadlineDays: 2, syncState: "reviewed", lastSeenAt: nowIso },
-  { internalId: "3030920", id: "36760/2026/2", address: "R. Bartolomeu dos Santos, 24", neighborhood: "São Damião", region: "Norte", requestedAt: "16/08/2026 11:08", service: "Passeio", detail: "Mesmo trecho da OS 36171/2026/2", deadlineDays: 1, syncState: "updated", lastSeenAt: nowIso, changedAt: nowIso },
-  { internalId: "3030823", id: "36057/2026/2", address: "R. Guimarães Rosa, 102", neighborhood: "Cidade do Sol", region: "Norte", requestedAt: "14/08/2026 08:45", service: "Muro", detail: "Assentar piso · ligar antes · área interna", deadlineDays: 1, syncState: "complaint", lastSeenAt: nowIso, changedAt: nowIso, complaintAt: nowIso },
-  { internalId: "3031512", id: "34355/2026/2", address: "Estr. da Remonta, 45", neighborhood: "Barbosa Lage", region: "Norte", requestedAt: "12/08/2026 10:20", service: "Passeio", detail: "Acabamento não informado", deadlineDays: 3, syncState: "reviewed", lastSeenAt: nowIso },
-  { internalId: "3031700", id: "36237/2026/1", address: "Estr. da Remonta, 204", neighborhood: "Jóquei Clube III", region: "Norte", requestedAt: "16/08/2026 15:31", service: "Passeio", detail: "Corredor próximo à Estrada da Remonta", deadlineDays: 2, syncState: "new", lastSeenAt: nowIso },
-  { internalId: "3030681", id: "36097/2026/1", address: "R. Jesus Raymundo, 435", neighborhood: "Teixeiras", region: "Sul", requestedAt: "11/08/2026 13:28", service: "Muro", detail: "Recompor parede", deadlineDays: 2, syncState: "reviewed", lastSeenAt: nowIso },
-  { internalId: "3030629", id: "36097/2026/2", address: "R. Jesus Raymundo, 435", neighborhood: "Teixeiras", region: "Sul", requestedAt: "11/08/2026 13:28", service: "Passeio", detail: "Executar no mesmo local da OS 36097/2026/1", deadlineDays: 2, syncState: "reviewed", lastSeenAt: nowIso },
-  { internalId: "3030550", id: "32325/2026/1", address: "R. Benício de Souza Rocha, 161", neighborhood: "Graminha", region: "Sul", requestedAt: "11/08/2026 10:24", service: "Passeio", detail: "Cimentado · refazer degrau", deadlineDays: 2, syncState: "updated", lastSeenAt: nowIso, changedAt: nowIso },
-  { internalId: "3029110", id: "32771/2026/2", address: "R. Francisco Foini, 141", neighborhood: "Centenário", region: "Leste", requestedAt: "05/08/2026 09:17", service: "Muro", detail: "Endereço corrigido · acabamento cimentado", deadlineDays: 2, syncState: "updated", lastSeenAt: nowIso, changedAt: nowIso },
-  { internalId: "3031183", id: "19191/2026/4", address: "R. Pinto de Moura, 180", neighborhood: "Poço Rico", region: "Sul", requestedAt: "15/08/2026 16:12", service: "Vistoria", detail: "Pedra portuguesa · retirar medidas", deadlineDays: 1, syncState: "complaint", lastSeenAt: nowIso, complaintAt: nowIso },
-  { internalId: "3031195", id: "28585/2026/4", address: "Av. Francisco Valadares, 2745", neighborhood: "Poço Rico", region: "Sul", requestedAt: "15/08/2026 17:03", service: "Vistoria", detail: "Passeio cimentado · retirar medidas", deadlineDays: 1, syncState: "new", lastSeenAt: nowIso },
-  { internalId: "3031230", id: "32892/2026/1", address: "R. Princesa Isabel, 121", neighborhood: "Centro", region: "Sul", requestedAt: "16/08/2026 08:51", service: "Vistoria", detail: "Verificar necessidade e medidas", deadlineDays: 1, syncState: "new", lastSeenAt: nowIso },
-  { internalId: "3031214", id: "31374/2026/5", address: "R. Baependi, 358", neighborhood: "Vitorino Braga", region: "Leste", requestedAt: "16/08/2026 07:48", service: "Vistoria", detail: "Cimentado · em frente ao portão", deadlineDays: 1, syncState: "reviewed", lastSeenAt: nowIso },
+  { internalId: "3032011", id: "37007/2026/2", address: "Av. Dr. Paulo Japiassu Coelho, 10", neighborhood: "Cascatinha", region: "Sul", requestedAt: "17/08/2026 17:21:27", service: "Passeio", serviceCode: "S201 X", detail: "Recompor passeio", syncState: "new", complaintCount: 1, latestComplaintAt: "17/08/2026", lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032012", id: "36890/2026/4", address: "R. José Vicente, 1009", neighborhood: "Vila Santa Rita de Cássia", region: "Leste", requestedAt: "17/08/2026 16:05:48", service: "Muro", serviceCode: "S200 X", detail: "Recompor muro com acabamento", syncState: "complaint", complaintCount: 4, latestComplaintAt: "17/08/2026", lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032013", id: "36985/2026/1", address: "R. Luiz Fellett, 14", neighborhood: "Santo Antônio do Paraibuna", region: "Leste", requestedAt: "17/08/2026 15:52:58", service: "Muro", serviceCode: "S200 X", detail: "Recompor muro", syncState: "updated", complaintCount: 2, latestComplaintAt: "16/08/2026", lastSeenAt: "2026-08-18T01:00:00Z", changedAt: "2026-08-17T20:00:00Z" },
+  { internalId: "3032014", id: "37003/2026/0", address: "R. Onofre Oliveira Salles, 100", neighborhood: "Cidade do Sol", region: "Norte", requestedAt: "17/08/2026 14:48:00", service: "Caixa Padrão", serviceCode: "S025", detail: "Substituição de caixa padrão", syncState: "new", complaintCount: 0, lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032015", id: "36890/2026/2", address: "R. José Vicente, 1009", neighborhood: "Vila Santa Rita de Cássia", region: "Leste", requestedAt: "17/08/2026 13:04:52", service: "Passeio", serviceCode: "S201 X", detail: "Mesmo endereço da OS 36890/2026/4", syncState: "complaint", complaintCount: 3, latestComplaintAt: "17/08/2026", lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032016", id: "35187/2026/5", address: "R. Dante Bellei, 151", neighborhood: "Santa Cândida", region: "Leste", requestedAt: "17/08/2026 12:32:30", service: "Muro", serviceCode: "S200 X", detail: "Recompor muro", syncState: "reviewed", complaintCount: 0, lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032017", id: "36335/2026/3", address: "Av. Sr. dos Passos, 1125", neighborhood: "São Pedro", region: "Sul", requestedAt: "17/08/2026 11:01:55", service: "Passeio", serviceCode: "S201 X", detail: "Passeio cimentado", syncState: "new", complaintCount: 1, latestComplaintAt: "17/08/2026", lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032018", id: "28718/2026/3", address: "R. Tavares Bastos, 72", neighborhood: "São Mateus", region: "Sul", requestedAt: "17/08/2026 09:49:20", service: "Passeio", serviceCode: "S201 X", detail: "Recompor passeio", syncState: "reviewed", complaintCount: 0, lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032019", id: "36742/2026/1", address: "R. Halfeld, 650", neighborhood: "Centro", region: "Sul", requestedAt: "16/08/2026 18:20:14", service: "Caixa Padrão", serviceCode: "S025", detail: "Caixa danificada", syncState: "complaint", complaintCount: 5, latestComplaintAt: "17/08/2026", lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032020", id: "36545/2026/5", address: "R. Luiz Basílio Castor, 250", neighborhood: "Santa Luzia", region: "Sul", requestedAt: "14/08/2026 14:30:00", service: "Passeio", serviceCode: "S201 X", detail: "Passeio cimentado", syncState: "reviewed", complaintCount: 0, lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032021", id: "36568/2026/1", address: "R. Eduardo Viviani, 417", neighborhood: "Boa Vista", region: "Sul", requestedAt: "14/08/2026 10:31:00", service: "Muro", serviceCode: "S200 X", detail: "Parede simples", syncState: "updated", complaintCount: 2, latestComplaintAt: "15/08/2026", lastSeenAt: "2026-08-18T01:00:00Z", changedAt: "2026-08-16T12:00:00Z" },
+  { internalId: "3032022", id: "36568/2026/2", address: "R. Eduardo Viviani, 417", neighborhood: "Boa Vista", region: "Sul", requestedAt: "14/08/2026 10:31:00", service: "Passeio", serviceCode: "S201 X", detail: "Executar no mesmo imóvel", syncState: "reviewed", complaintCount: 0, lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032023", id: "36130/2026/1", address: "R. Jandira Limp Pinheiro, 239", neighborhood: "Jardim Bela Aurora", region: "Sul", requestedAt: "11/08/2026 16:48:00", service: "Passeio", serviceCode: "S201 X", detail: "Acesso difícil · final de escadão", syncState: "complaint", complaintCount: 3, latestComplaintAt: "16/08/2026", lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032024", id: "36097/2026/1", address: "R. Jesus Raymundo, 435", neighborhood: "Teixeiras", region: "Sul", requestedAt: "11/08/2026 13:28:00", service: "Muro", serviceCode: "S200 X", detail: "Recompor parede", syncState: "reviewed", complaintCount: 1, latestComplaintAt: "12/08/2026", lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032025", id: "36097/2026/2", address: "R. Jesus Raymundo, 435", neighborhood: "Teixeiras", region: "Sul", requestedAt: "11/08/2026 13:28:00", service: "Passeio", serviceCode: "S201 X", detail: "Recompor passeio · mesmo imóvel", syncState: "reviewed", complaintCount: 0, lastSeenAt: "2026-08-18T01:00:00Z" },
+  { internalId: "3032026", id: "35830/2026/1", address: "Av. Darcy Vargas, 602", neighborhood: "Ipiranga", region: "Sul", requestedAt: "09/08/2026 12:52:00", service: "Muro", serviceCode: "S200 X", detail: "Recompor parede", syncState: "not_seen", complaintCount: 2, latestComplaintAt: "10/08/2026", lastSeenAt: "2026-08-15T01:00:00Z" },
 ];
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
 }
 
-function fingerprint(order: Pick<WorkOrder, "address" | "neighborhood" | "region" | "requestedAt" | "service" | "detail">) {
-  return normalize([order.address, order.neighborhood, order.region, order.requestedAt, order.service, order.detail].join("|"));
+function fingerprint(order: Pick<WorkOrder, "address" | "neighborhood" | "region" | "requestedAt" | "serviceCode" | "detail" | "complaintCount">) {
+  return normalize([order.address, order.neighborhood, order.region, order.requestedAt, order.serviceCode, order.detail, order.complaintCount].join("|"));
 }
 
 const initialOrders: WorkOrder[] = orderSeeds.map((order) => ({ ...order, sourceHash: fingerprint(order) }));
 
-function serviceFrom(raw: string): Service {
+function serviceInfo(raw: string): { service: Service; serviceCode: ServiceCode } | null {
   const value = normalize(raw);
-  if (value.includes("MURO") || value.includes("PAREDE")) return "Muro";
-  if (value.includes("VISTOR")) return "Vistoria";
-  return "Passeio";
+  if (value.includes("S025") || value.includes("CAIXA PADRAO")) return { service: "Caixa Padrão", serviceCode: "S025" };
+  if (value.includes("S200") || value.includes("RECOMPOR MURO")) return { service: "Muro", serviceCode: "S200 X" };
+  if (value.includes("S201") || value.includes("RECOMPOR PASSEIO")) return { service: "Passeio", serviceCode: "S201 X" };
+  return null;
 }
 
 function stateLabel(state: SyncState) {
@@ -107,30 +100,48 @@ function stateLabel(state: SyncState) {
 }
 
 function parseRequestedAt(value: string) {
-  const match = value.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-  if (!match) return 0;
-  return new Date(`${match[3]}-${match[2]}-${match[1]}T12:00:00`).getTime();
+  const match = value.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!match) return Date.parse(value) || 0;
+  return new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]), Number(match[4] ?? 12), Number(match[5] ?? 0), Number(match[6] ?? 0)).getTime();
 }
 
-function scoreOrder(order: WorkOrder, rules: SuggestionRules, sameAddressCount: number) {
+function formatRequestedAt(value: string) {
+  const time = parseRequestedAt(value);
+  return time ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "medium" }).format(new Date(time)) : "Data não informada";
+}
+
+function scoreOrder(order: WorkOrder, rules: SuggestionRules) {
   let score = 0;
   const reasons: string[] = [];
-  if (rules.complaints && order.syncState === "complaint") { score += 55; reasons.push("reclamação recente"); }
-  if (rules.deadlines && order.deadlineDays <= 1) { score += 35; reasons.push("prazo crítico"); }
-  if (rules.changes && order.syncState === "updated") { score += 25; reasons.push("OS alterada"); }
-  if (rules.changes && order.syncState === "new") { score += 18; reasons.push("OS nova"); }
-  if (rules.sameAddress && sameAddressCount > 1) { score += 20; reasons.push("mesmo endereço"); }
-  const sevenDays = 7 * 24 * 60 * 60 * 1000;
-  if (rules.recent && Date.now() - parseRequestedAt(order.requestedAt) <= sevenDays) { score += 12; reasons.push("solicitação recente"); }
-  return { score, reasons };
+  if (rules.complaints && order.complaintCount > 0) {
+    score += Math.min(order.complaintCount, 5) * 18;
+    reasons.push(`${order.complaintCount} reclamação${order.complaintCount === 1 ? "" : "ões"}`);
+  }
+  if (rules.recent) {
+    const ageDays = Math.max(0, (referenceNow - parseRequestedAt(order.requestedAt)) / 86_400_000);
+    const recentScore = Math.max(0, 40 - Math.floor(ageDays * 4));
+    score += recentScore;
+    if (ageDays <= 3) reasons.push("solicitação recente");
+  }
+  return { score, reasons: reasons.length ? reasons : ["sem prioridade automática"] };
 }
 
-function storedToOrder(order: StoredOrder): WorkOrder {
+function storedToOrder(order: StoredOrder): WorkOrder | null {
+  const info = serviceInfo(`${order.serviceCode ?? ""} ${order.service}`);
+  if (!info) return null;
   return {
     ...order,
-    service: serviceFrom(order.service),
+    ...info,
+    requestedAt: formatRequestedAt(order.requestedAt),
     syncState: order.syncState as SyncState,
+    complaintCount: order.complaintCount ?? 0,
+    latestComplaintAt: order.latestComplaintAt,
   };
+}
+
+function SortHeader({ label, sortKey, currentKey, direction, onSort }: { label: string; sortKey: SortKey; currentKey: SortKey; direction: SortDirection; onSort: (key: SortKey) => void }) {
+  const active = currentKey === sortKey;
+  return <button className={active ? "sort-header active" : "sort-header"} onClick={() => onSort(sortKey)}>{label}<span>{active ? (direction === "asc" ? "↑" : "↓") : "↕"}</span></button>;
 }
 
 export default function Home() {
@@ -139,17 +150,26 @@ export default function Home() {
   const [draftTeams, setDraftTeams] = useState<TeamConfig[]>(initialTeams);
   const [rules, setRules] = useState<SuggestionRules>(initialRules);
   const [draftRules, setDraftRules] = useState<SuggestionRules>(initialRules);
-  const [selected, setSelected] = useState(() => new Set(initialOrders.slice(0, 12).map((order) => order.id)));
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [suggested, setSuggested] = useState<Set<string>>(() => new Set());
+  const [suggestionReasons, setSuggestionReasons] = useState<Record<string, string[]>>({});
+  const [suggestionRank, setSuggestionRank] = useState<Record<string, number>>({});
   const [assignments, setAssignments] = useState<Record<string, string>>({});
-  const [reasons, setReasons] = useState<Record<string, string[]>>({});
   const [query, setQuery] = useState("");
   const [serviceFilter, setServiceFilter] = useState<"Todos" | Service>("Todos");
   const [stateFilter, setStateFilter] = useState<"Todos" | SyncState>("Todos");
+  const [suggestionFilter, setSuggestionFilter] = useState<"Todos" | "Sugeridas">("Todos");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("date");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [teamFilter, setTeamFilter] = useState("Todas");
   const [modal, setModal] = useState<Modal>(null);
+  const [explainedOrderId, setExplainedOrderId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
-  const [calculated, setCalculated] = useState(false);
-  const [environment, setEnvironment] = useState("DEV");
+  const [routeCalculated, setRouteCalculated] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -160,82 +180,76 @@ export default function Home() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const host = window.location.hostname;
-      setEnvironment(host.includes("daiened.github.io") || host.includes("rotaos-dev") || host === "localhost" ? "DEV" : "PRODUÇÃO");
-      const localTeams = window.localStorage.getItem("rotaos-team-settings-v2");
-      const localOrders = window.localStorage.getItem("rotaos-dev-orders");
-      const localRules = window.localStorage.getItem("rotaos-suggestion-rules");
-      if (localTeams) try { setTeams(JSON.parse(localTeams)); } catch { /* configuração antiga inválida */ }
-      if (localOrders && !cloudReady) try { setOrders(JSON.parse(localOrders)); } catch { /* base local inválida */ }
-      if (localRules) try { setRules(JSON.parse(localRules)); } catch { /* regras antigas inválidas */ }
+      const localTeams = window.localStorage.getItem("rotaos-team-settings-v3");
+      const localRules = window.localStorage.getItem("rotaos-suggestion-rules-v2");
+      if (localTeams) try { setTeams(JSON.parse(localTeams)); } catch { /* configuração inválida */ }
+      if (localRules) try { setRules(JSON.parse(localRules)); } catch { /* configuração inválida */ }
     }, 0);
-
     if (cloudReady) {
       void currentUserEmail().then(async (email) => {
         setUserEmail(email);
         if (!email) return;
         const [cloudOrders, cloudTeams] = await Promise.all([loadOrders(), loadTeams()]);
-        if (cloudOrders.length) setOrders(cloudOrders.map(storedToOrder));
-        if (cloudTeams.length) setTeams(cloudTeams.map((team) => ({ ...team, services: team.services.map(serviceFrom) })));
-      }).catch(() => setToast("Não foi possível carregar a nuvem. O modo DEV continua disponível."));
+        const supported = cloudOrders.map(storedToOrder).filter((order): order is WorkOrder => Boolean(order));
+        if (supported.length) setOrders(supported);
+        if (cloudTeams.length) setTeams(cloudTeams.map((team) => ({ ...team, services: team.services.map((service) => serviceInfo(service)?.service).filter((service): service is Service => Boolean(service)) })));
+      }).catch(() => setToast("Não foi possível consultar a base online."));
     }
     return () => window.clearTimeout(timer);
   }, [cloudReady]);
 
   useEffect(() => {
-    function receiveImport(event: MessageEvent) {
+    async function receiveImport(event: MessageEvent) {
       if (event.source !== window || event.data?.type !== "ROTAOS_IMPORT_FROM_PROCESA") return;
       const incoming = Array.isArray(event.data.payload?.orders) ? event.data.payload.orders : [];
       if (!incoming.length) return;
       const capturedAt = String(event.data.payload?.capturedAt ?? new Date().toISOString());
       const existing = new Map(orders.map((order) => [order.id, order]));
       const summary = { new: 0, updated: 0, reviewed: 0, complaint: 0 };
-      const captured: WorkOrder[] = incoming.map((raw: Record<string, unknown>, index: number) => {
+      const captured: WorkOrder[] = incoming.map((raw: Record<string, unknown>, index: number): WorkOrder | null => {
+        const info = serviceInfo(`${String(raw.serviceType ?? "")} ${String(raw.requestedService ?? "")} ${String(raw.detail ?? "")}`);
+        if (!info) return null;
         const id = String(raw.id ?? raw.occurrence ?? `OS-${index + 1}`);
         const previous = existing.get(id);
-        const detail = String(raw.detail ?? raw.serviceType ?? "Detalhe ainda não identificado");
+        const complaintCount = Number(raw.complaintCount ?? previous?.complaintCount ?? 0);
         const base: WorkOrder = {
-          internalId: String(raw.internalId ?? ""),
-          id,
+          internalId: String(raw.internalId ?? ""), id,
           address: String(raw.address ?? "Endereço não informado"),
           neighborhood: String(raw.neighborhood ?? "Bairro não informado"),
           region: String(raw.region ?? "Região não informada"),
           requestedAt: String(raw.requestedAt ?? ""),
-          service: serviceFrom(String(raw.serviceType ?? raw.requestedService ?? detail)),
-          detail,
-          deadlineDays: previous?.deadlineDays ?? 2,
+          ...info,
+          detail: String(raw.detail ?? "Detalhe ainda não identificado"),
           syncState: "new",
+          complaintCount,
+          latestComplaintAt: String(raw.latestComplaintAt ?? previous?.latestComplaintAt ?? "") || undefined,
           sourceHash: "",
           lastSeenAt: capturedAt,
+          changedAt: previous?.changedAt,
         };
         base.sourceHash = fingerprint(base);
-        const hasComplaint = /RECLAMA|RETORNO|URGENTE|PRIORIDADE/i.test(normalize(detail));
-        if (!previous) {
-          base.syncState = hasComplaint ? "complaint" : "new";
-          base.complaintAt = hasComplaint ? capturedAt : undefined;
-        } else if (previous.sourceHash !== base.sourceHash) {
-          base.syncState = hasComplaint ? "complaint" : "updated";
-          base.changedAt = capturedAt;
-          base.complaintAt = hasComplaint ? capturedAt : previous.complaintAt;
-        } else {
-          base.syncState = previous.syncState === "complaint" ? "complaint" : "reviewed";
-          base.changedAt = previous.changedAt;
-          base.complaintAt = previous.complaintAt;
-        }
+        if (!previous) base.syncState = complaintCount ? "complaint" : "new";
+        else if (previous.sourceHash !== base.sourceHash) { base.syncState = complaintCount > previous.complaintCount ? "complaint" : "updated"; base.changedAt = capturedAt; }
+        else base.syncState = previous.syncState === "complaint" ? "complaint" : "reviewed";
         summary[base.syncState === "complaint" ? "complaint" : base.syncState as "new" | "updated" | "reviewed"] += 1;
         return base;
-      });
+      }).filter((order: WorkOrder | null): order is WorkOrder => Boolean(order));
+
       const capturedIds = new Set(captured.map((order) => order.id));
       const merged = [...captured, ...orders.filter((order) => !capturedIds.has(order.id))];
-      setOrders(merged);
-      setSelected(new Set(captured.filter((order) => order.syncState !== "reviewed").map((order) => order.id)));
-      setCalculated(false);
-      window.localStorage.setItem("rotaos-dev-orders", JSON.stringify(merged));
       if (cloudReady && userEmail) {
-        void saveOrders(captured, summary).catch(() => setToast("As OS chegaram, mas a nuvem não respondeu. Tente sincronizar novamente."));
+        try {
+          await saveOrders(captured, summary);
+          const refreshed = (await loadOrders()).map(storedToOrder).filter((order): order is WorkOrder => Boolean(order));
+          setOrders(refreshed);
+        } catch { setToast("A sincronização não foi salva. A base anterior foi preservada."); }
+      } else {
+        setOrders(merged);
       }
-      setToast(`${captured.length} OS conferidas: ${summary.new} novas, ${summary.updated} alteradas e ${summary.complaint} com reclamação.`);
+      setSuggested(new Set());
+      setPage(1);
       setModal(null);
+      setToast(`${captured.length} OS atendidas pela Camilla foram comparadas. Outros serviços foram ignorados.`);
       window.postMessage({ type: "ROTAOS_IMPORT_ACCEPTED" }, window.location.origin);
     }
     window.addEventListener("message", receiveImport);
@@ -249,211 +263,163 @@ export default function Home() {
   }, [toast]);
 
   const activeTeams = teams.filter((team) => team.active);
-  const addressCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    orders.forEach((order) => counts.set(normalize(order.address), (counts.get(normalize(order.address)) ?? 0) + 1));
-    return counts;
-  }, [orders]);
+  const scores = useMemo(() => Object.fromEntries(orders.map((order) => [order.id, scoreOrder(order, rules)])), [orders, rules]);
 
-  const scored = useMemo(() => Object.fromEntries(orders.map((order) => [order.id, scoreOrder(order, rules, addressCounts.get(normalize(order.address)) ?? 1)])), [addressCounts, orders, rules]);
+  const filteredSorted = useMemo(() => {
+    const fromTime = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : 0;
+    const toTime = dateTo ? new Date(`${dateTo}T23:59:59`).getTime() : Number.MAX_SAFE_INTEGER;
+    const filtered = orders.filter((order) => {
+      const requestedTime = parseRequestedAt(order.requestedAt);
+      const text = normalize(`${order.id} ${order.address} ${order.neighborhood} ${order.detail} ${order.serviceCode}`);
+      return (!query || text.includes(normalize(query)))
+        && (serviceFilter === "Todos" || order.service === serviceFilter)
+        && (stateFilter === "Todos" || order.syncState === stateFilter)
+        && (suggestionFilter === "Todos" || suggested.has(order.id))
+        && (teamFilter === "Todas" || assignments[order.id] === teamFilter)
+        && requestedTime >= fromTime && requestedTime <= toTime;
+    });
+    const factor = sortDirection === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      let comparison = 0;
+      if (sortKey === "selected") comparison = Number(selected.has(a.id)) - Number(selected.has(b.id));
+      if (sortKey === "date") comparison = parseRequestedAt(a.requestedAt) - parseRequestedAt(b.requestedAt);
+      if (sortKey === "complaints") comparison = a.complaintCount - b.complaintCount;
+      if (sortKey === "service") comparison = `${a.serviceCode} ${a.service}`.localeCompare(`${b.serviceCode} ${b.service}`, "pt-BR");
+      if (sortKey === "location") comparison = `${a.neighborhood} ${a.address}`.localeCompare(`${b.neighborhood} ${b.address}`, "pt-BR");
+      if (sortKey === "suggestion") comparison = (suggestionRank[a.id] ?? 9999) - (suggestionRank[b.id] ?? 9999);
+      if (sortKey === "state") comparison = stateLabel(a.syncState).localeCompare(stateLabel(b.syncState), "pt-BR");
+      return comparison * factor || parseRequestedAt(b.requestedAt) - parseRequestedAt(a.requestedAt);
+    });
+  }, [assignments, dateFrom, dateTo, orders, query, selected, serviceFilter, sortDirection, sortKey, stateFilter, suggested, suggestionFilter, suggestionRank, teamFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredSorted.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageOrders = filteredSorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const allPageSelected = pageOrders.length > 0 && pageOrders.every((order) => selected.has(order.id));
   const selectedOrders = orders.filter((order) => selected.has(order.id));
-  const teamCounts = Object.fromEntries(teams.map((team) => [team.id, selectedOrders.filter((order) => assignments[order.id] === team.id).length]));
-  const selectedStops = new Set(selectedOrders.map((order) => normalize(order.address))).size;
-  const attentionCount = selectedOrders.filter((order) => ["new", "updated", "complaint"].includes(order.syncState)).length;
-
-  const filtered = useMemo(() => orders.filter((order) => {
-    const teamMatch = teamFilter === "Todas" || assignments[order.id] === teamFilter;
-    const serviceMatch = serviceFilter === "Todos" || order.service === serviceFilter;
-    const stateMatch = stateFilter === "Todos" || order.syncState === stateFilter;
-    const text = normalize(`${order.id} ${order.address} ${order.neighborhood} ${order.detail}`);
-    return teamMatch && serviceMatch && stateMatch && text.includes(normalize(query));
-  }), [assignments, orders, query, serviceFilter, stateFilter, teamFilter]);
-
-  const allVisibleSelected = filtered.length > 0 && filtered.every((order) => selected.has(order.id));
+  const suggestedOrders = orders.filter((order) => suggested.has(order.id));
+  const mapOrders = suggestedOrders.length ? suggestedOrders : selectedOrders;
+  const teamCounts = Object.fromEntries(teams.map((team) => [team.id, mapOrders.filter((order) => assignments[order.id] === team.id).length]));
   const pinPositions = [[15, 22], [24, 33], [31, 20], [55, 18], [67, 28], [61, 40], [30, 62], [42, 72], [49, 58], [66, 65], [74, 55], [82, 72], [58, 78], [20, 48], [78, 35]];
+  const explainedOrder = orders.find((order) => order.id === explainedOrderId);
 
-  function distribute(orderIds: Set<string>) {
-    const chosenOrders = orders.filter((order) => orderIds.has(order.id));
-    if (!chosenOrders.length) { setToast("Selecione ao menos uma OS para calcular."); return; }
-    if (!activeTeams.length) { setToast("Ative ao menos uma equipe."); return; }
-    const nextAssignments: Record<string, string> = {};
-    const nextReasons: Record<string, string[]> = {};
+  function changeSort(key: SortKey) {
+    if (sortKey === key) setSortDirection((current) => current === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDirection(key === "service" || key === "location" || key === "state" ? "asc" : "desc"); }
+    setPage(1);
+  }
+
+  function distribute(orderIds: Set<string>, label: string) {
+    const chosen = orders.filter((order) => orderIds.has(order.id));
+    if (!chosen.length) { setToast(`Não há OS na ${label.toLowerCase()}.`); return; }
     const load = Object.fromEntries(activeTeams.map((team) => [team.id, 0])) as Record<string, number>;
+    const next: Record<string, string> = {};
     const groups = new Map<string, WorkOrder[]>();
-    chosenOrders.forEach((order) => {
-      const key = normalize(order.address);
-      groups.set(key, [...(groups.get(key) ?? []), order]);
+    chosen.forEach((order) => { const key = normalize(order.address); groups.set(key, [...(groups.get(key) ?? []), order]); });
+    [...groups.values()].sort((a, b) => (scores[b[0].id]?.score ?? 0) - (scores[a[0].id]?.score ?? 0)).forEach((group) => {
+      const compatible = activeTeams.filter((team) => group.every((order) => team.services.includes(order.service)) && load[team.id] + group.length <= team.capacity).sort((a, b) => load[a.id] - load[b.id]);
+      if (compatible[0]) { group.forEach((order) => { next[order.id] = compatible[0].id; }); load[compatible[0].id] += group.length; return; }
+      group.forEach((order) => { const team = activeTeams.filter((item) => item.services.includes(order.service) && load[item.id] < item.capacity).sort((a, b) => load[a.id] - load[b.id])[0]; if (team) { next[order.id] = team.id; load[team.id] += 1; } });
     });
-    [...groups.values()].sort((a, b) => (scored[b[0].id]?.score ?? 0) - (scored[a[0].id]?.score ?? 0)).forEach((group) => {
-      const groupTeams = activeTeams
-        .filter((team) => group.every((order) => team.services.includes(order.service)) && load[team.id] + group.length <= team.capacity)
-        .sort((a, b) => load[a.id] - load[b.id]);
-      if (groupTeams[0]) {
-        group.forEach((order) => {
-          nextAssignments[order.id] = groupTeams[0].id;
-          nextReasons[order.id] = [...scored[order.id].reasons, `${groupTeams[0].name} compatível`];
-        });
-        load[groupTeams[0].id] += group.length;
-        return;
-      }
-      group.forEach((order) => {
-        const team = activeTeams.filter((item) => item.services.includes(order.service) && load[item.id] < item.capacity).sort((a, b) => load[a.id] - load[b.id])[0];
-        if (!team) { nextReasons[order.id] = ["sem equipe compatível ou sem capacidade"]; return; }
-        nextAssignments[order.id] = team.id;
-        nextReasons[order.id] = [...scored[order.id].reasons, `${team.name} compatível`];
-        load[team.id] += 1;
-      });
-    });
-    setAssignments(nextAssignments);
-    setReasons(nextReasons);
-    setCalculated(true);
-    setTeamFilter("Todas");
-    const pending = chosenOrders.length - Object.keys(nextAssignments).length;
-    setToast(pending ? `Sugestão pronta, com ${pending} OS para revisão manual.` : `Sugestão pronta para ${chosenOrders.length} OS. Revise antes de enviar.`);
+    setAssignments((current) => ({ ...current, ...next }));
+    setRouteCalculated(true);
+    setToast(`${label} distribuída entre as equipes para revisão. Nada foi enviado ao Procesa.`);
   }
 
-  function applySmartSuggestion() {
+  function createSuggestion() {
     const totalCapacity = activeTeams.reduce((sum, team) => sum + team.capacity, 0);
-    const candidates = orders
-      .filter((order) => !["archived", "not_seen"].includes(order.syncState) && activeTeams.some((team) => team.services.includes(order.service)))
-      .sort((a, b) => (scored[b.id]?.score ?? 0) - (scored[a.id]?.score ?? 0))
-      .slice(0, totalCapacity);
-    const ids = new Set(candidates.map((order) => order.id));
-    setSelected(ids);
-    distribute(ids);
+    const eligible = orders.filter((order) => !["archived", "not_seen"].includes(order.syncState) && activeTeams.some((team) => team.services.includes(order.service)));
+    const ranked = [...eligible].sort((a, b) => scores[b.id].score - scores[a.id].score || parseRequestedAt(b.requestedAt) - parseRequestedAt(a.requestedAt)).slice(0, totalCapacity);
+    const ids = new Set(ranked.map((order) => order.id));
+    setSuggested(ids);
+    setSuggestionRank(Object.fromEntries(ranked.map((order, index) => [order.id, index + 1])));
+    setSuggestionReasons(Object.fromEntries(ranked.map((order) => [order.id, scores[order.id].reasons])));
+    setSuggestionFilter("Sugeridas");
+    setSortKey("suggestion");
+    setSortDirection("asc");
+    setPage(1);
+    distribute(ids, "Sugestão RotaOS");
   }
 
-  function toggleVisible() {
-    setSelected((current) => {
-      const next = new Set(current);
-      filtered.forEach((order) => allVisibleSelected ? next.delete(order.id) : next.add(order.id));
-      return next;
-    });
-    setCalculated(false);
+  function togglePage() {
+    setSelected((current) => { const next = new Set(current); pageOrders.forEach((order) => allPageSelected ? next.delete(order.id) : next.add(order.id)); return next; });
   }
 
   async function handleLogin(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setLoginError("");
+    event.preventDefault(); setBusy(true); setLoginError("");
     try {
-      await signIn(loginEmail, loginPassword);
-      setUserEmail(loginEmail);
-      const [cloudOrders, cloudTeams] = await Promise.all([loadOrders(), loadTeams()]);
-      if (cloudOrders.length) setOrders(cloudOrders.map(storedToOrder));
-      if (cloudTeams.length) setTeams(cloudTeams.map((team) => ({ ...team, services: team.services.map(serviceFrom) })));
-      setModal(null);
-      setToast("Nuvem conectada. A base está disponível neste computador.");
-    } catch (error) {
-      setLoginError(error instanceof Error ? error.message : "Não foi possível entrar.");
-    } finally { setBusy(false); }
+      await signIn(loginEmail, loginPassword); setUserEmail(loginEmail);
+      const refreshed = (await loadOrders()).map(storedToOrder).filter((order): order is WorkOrder => Boolean(order));
+      if (refreshed.length) setOrders(refreshed);
+      setModal(null); setToast("Base online conectada.");
+    } catch (error) { setLoginError(error instanceof Error ? error.message : "Não foi possível entrar."); }
+    finally { setBusy(false); }
   }
 
   function persistTeams() {
-    if (!draftTeams.some((team) => team.active)) { setToast("Deixe ao menos uma equipe ativa."); return; }
-    setTeams(draftTeams);
-    window.localStorage.setItem("rotaos-team-settings-v2", JSON.stringify(draftTeams));
-    if (cloudReady && userEmail) void saveTeamsToCloud(draftTeams).catch(() => setToast("Equipes salvas no navegador; a nuvem não respondeu."));
-    setAssignments({});
-    setCalculated(false);
-    setModal(null);
-    setToast("Equipes atualizadas. Calcule novamente para aplicar as capacidades.");
+    setTeams(draftTeams); window.localStorage.setItem("rotaos-team-settings-v3", JSON.stringify(draftTeams));
+    if (cloudReady && userEmail) void saveTeamsToCloud(draftTeams).catch(() => setToast("Equipes salvas apenas neste navegador."));
+    setModal(null); setRouteCalculated(false); setToast("Equipes e capacidades atualizadas.");
   }
 
   function persistRules() {
-    setRules(draftRules);
-    window.localStorage.setItem("rotaos-suggestion-rules", JSON.stringify(draftRules));
-    setCalculated(false);
-    setModal(null);
-    setToast("Critérios atualizados. Gere uma nova sugestão.");
+    setRules(draftRules); window.localStorage.setItem("rotaos-suggestion-rules-v2", JSON.stringify(draftRules));
+    setSuggested(new Set()); setSuggestionFilter("Todos"); setModal(null); setToast("Critérios atualizados. Gere uma nova sugestão.");
   }
-
-  const syncCounts = {
-    new: orders.filter((order) => order.syncState === "new").length,
-    updated: orders.filter((order) => order.syncState === "updated").length,
-    complaint: orders.filter((order) => order.syncState === "complaint").length,
-  };
 
   return <main className="app-shell">
     <aside className="sidebar">
       <div className="brand"><span className="brand-mark">R</span><span>RotaOS</span></div>
-      <nav className="module-switcher" aria-label="Módulos do RotaOS">
-        <button className="current-module active"><span>01</span><div><strong>Planejamento</strong><small>rotas por equipe</small></div></button>
-      </nav>
-      <div className="sidebar-note environment-note"><span>AMBIENTE {environment}</span><strong>{environment === "DEV" ? "Espaço de testes" : "Versão estável"}</strong><p>{environment === "DEV" ? "Use para validar novidades antes de liberar para a Camilla." : "Somente recursos já validados entram aqui."}</p></div>
-      <div className={`cloud-status ${userEmail ? "connected" : ""}`}><i /> <div><strong>{userEmail ? "Nuvem conectada" : cloudReady ? "Aguardando login" : "Banco preparado"}</strong><small>{userEmail ?? (cloudReady ? "Entre para sincronizar" : "Conectar projeto Supabase")}</small></div></div>
+      <nav className="module-switcher" aria-label="Módulos"><button className="current-module active"><span>01</span><div><strong>Planejamento</strong><small>base e rotas</small></div></button></nav>
+      <div className="sidebar-note environment-note"><span>AMBIENTE DEV</span><strong>Validação pública</strong><p>A Produção continua intacta até a Camilla aprovar esta versão.</p></div>
+      <div className={`cloud-status ${userEmail ? "connected" : ""}`}><i /><div><strong>{userEmail ? "Banco conectado" : cloudReady ? "Aguardando login" : "Banco ainda não conectado"}</strong><small>{userEmail ?? "DEV demonstrativo"}</small></div></div>
     </aside>
 
     <section className="workspace prototype-workspace">
-      <header className="topbar prototype-topbar">
-        <div><p className="eyebrow">PLANEJAMENTO DE ROTAS · {environment}</p><h1>Rotas de hoje</h1><p className="subtitle">O RotaOS sugere. Você revisa e decide o que será distribuído.</p></div>
-        <div className="header-actions">
-          {cloudReady && <button className="secondary" onClick={() => userEmail ? void signOut().then(() => { setUserEmail(null); setToast("Você saiu da nuvem."); }) : setModal("login")}>{userEmail ? "Sair" : "Entrar"}</button>}
-          <button className="secondary" onClick={() => setModal("import")}>Importar do Procesa</button>
-          <button className="primary smart-button" onClick={applySmartSuggestion}>✦ Sugestão RotaOS</button>
-          <button className="icon-action" onClick={() => { setDraftRules(rules); setModal("rules"); }} aria-label="Configurar critérios da sugestão">⚙</button>
-        </div>
-      </header>
+      <header className="topbar prototype-topbar"><div><p className="eyebrow">PLANEJAMENTO DE ROTAS · DEV</p><h1>Chamados da Camilla</h1><p className="subtitle">S025 Caixa Padrão · S200 X Muro · S201 X Passeio</p></div><div className="header-actions">{cloudReady && <button className="secondary" onClick={() => userEmail ? void signOut().then(() => setUserEmail(null)) : setModal("login")}>{userEmail ? "Sair" : "Entrar"}</button>}<button className="secondary" onClick={() => setModal("import")}>Sincronizar Procesa</button><button className="primary smart-button" onClick={createSuggestion}>✦ Sugerir melhores chamados</button><button className="icon-action" onClick={() => { setDraftRules(rules); setModal("rules"); }} aria-label="Configurar critérios">⚙</button></div></header>
 
-      {!cloudReady && <div className="dev-banner"><strong>DEV sem banco conectado</strong><span>As funções podem ser validadas agora; ao conectar o Supabase, a mesma base ficará disponível de qualquer lugar.</span></div>}
-
-      <div className={calculated ? "prototype-notice calculated" : "prototype-notice"}><span>{calculated ? "✓" : "✦"}</span><div><strong>{calculated ? "Sugestão pronta para revisão" : `${selected.size} OS marcadas para calcular`}</strong><p>{calculated ? "Confira equipe, detalhes e prioridades. Nada foi enviado ao Procesa." : "Marque manualmente ou peça uma sugestão baseada nos critérios configurados."}</p></div><button onClick={() => distribute(selected)}>{calculated ? "Calcular novamente" : "Calcular seleção"} →</button></div>
+      <div className="architecture-banner"><strong>Fluxo definitivo</strong><span>Extensão → API segura → PostgreSQL → grid. O grid consultará sempre a base completa, não somente a última coleta.</span><em>{cloudReady && userEmail ? "Banco conectado" : "Neste DEV, a conexão online ainda está pendente"}</em></div>
 
       <section className="prototype-metrics">
-        <article><span className="prototype-metric-icon purple">✓</span><div><p>Base de OS</p><strong>{orders.length}</strong><small>{selected.size} na seleção atual</small></div></article>
-        <article><span className="prototype-metric-icon orange">＋</span><div><p>Novas</p><strong>{syncCounts.new}</strong><small>desde a última conferência</small></div></article>
-        <article><span className="prototype-metric-icon blue">↻</span><div><p>Alteradas</p><strong>{syncCounts.updated}</strong><small>merecem nova revisão</small></div></article>
-        <article><span className="prototype-metric-icon red">!</span><div><p>Reclamações</p><strong>{syncCounts.complaint}</strong><small>prioridade na sugestão</small></div></article>
+        <article><span className="prototype-metric-icon purple">▦</span><div><p>Base disponível</p><strong>{orders.length}</strong><small>somente serviços atendidos</small></div></article>
+        <article><span className="prototype-metric-icon orange">✦</span><div><p>Sugeridas</p><strong>{suggested.size}</strong><small>independente da seleção</small></div></article>
+        <article><span className="prototype-metric-icon red">!</span><div><p>Reclamações</p><strong>{orders.reduce((sum, order) => sum + order.complaintCount, 0)}</strong><small>ocorrências registradas</small></div></article>
+        <article><span className="prototype-metric-icon green">✓</span><div><p>Selecionadas</p><strong>{selected.size}</strong><small>escolha manual da Camilla</small></div></article>
       </section>
 
-      <section className="prototype-content-grid">
-        <article className="prototype-card prototype-map-card">
-          <div className="prototype-section-heading"><div><h2>Visão geral das rotas</h2><p>{selectedStops} paradas · {selectedOrders.length} OS · {attentionCount} pedem atenção</p></div><span className="prototype-map-state">MAPA ILUSTRATIVO</span></div>
-          <div className="prototype-map" aria-label="Mapa ilustrativo das equipes">
-            <div className="prototype-river" /><span className="prototype-road road-1" /><span className="prototype-road road-2" /><span className="prototype-road road-3" /><span className="prototype-road road-4" /><span className="prototype-road road-5" />
-            <span className="prototype-district d1">SANTA CRUZ</span><span className="prototype-district d2">BENFICA</span><span className="prototype-district d3">CENTRO</span><span className="prototype-district d4">TEIXEIRAS</span><span className="prototype-district d5">VITORINO BRAGA</span>
-            {selectedOrders.slice(0, pinPositions.length).map((order, index) => {
-              const team = teams.find((item) => item.id === assignments[order.id]);
-              const [left, top] = pinPositions[index];
-              return <span key={order.id} className="prototype-pin" style={{ left: `${left}%`, top: `${top}%`, background: team?.color ?? "#9a9eaa" }}><i>{index + 1}</i></span>;
-            })}
-            <div className="prototype-map-legend">{activeTeams.map((team) => <span key={team.id}><i style={{ background: team.color }} />{team.name}</span>)}</div>
-          </div>
-          <div className="map-warning"><strong>Distância ainda não calculada</strong><span>Nesta etapa, a sugestão usa prioridade, serviço, capacidade e mesmo endereço. O mapa real entra depois.</span></div>
-        </article>
+      <div className={routeCalculated ? "prototype-notice calculated" : "prototype-notice"}><span>{routeCalculated ? "✓" : "○"}</span><div><strong>{selected.size} chamados escolhidos manualmente</strong><p>A sugestão do RotaOS não marca nem desmarca estes chamados.</p></div><button onClick={() => distribute(selected, "Seleção manual")}>Calcular rotas da seleção →</button></div>
 
-        <aside className="prototype-card prototype-team-panel">
-          <div className="prototype-section-heading"><div><h2>Equipes</h2><p>Capacidade configurada para hoje</p></div><button className="prototype-icon-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }} aria-label="Configurar equipes">⚙</button></div>
-          <div className="prototype-team-list">{activeTeams.map((team, index) => <button key={team.id} className={teamFilter === team.id ? "prototype-team-row active" : "prototype-team-row"} onClick={() => setTeamFilter(teamFilter === team.id ? "Todas" : team.id)}><span className="prototype-team-number" style={{ background: team.color }}>{index + 1}</span><div><strong>{team.name}</strong><span>{team.services.join(" + ")}</span></div><small>{teamCounts[team.id] ?? 0}/{team.capacity} OS</small><b>›</b></button>)}</div>
-          <div className="prototype-team-actions"><button className="prototype-outline-full" onClick={() => setTeamFilter("Todas")}>Todas as equipes</button><button className="prototype-settings-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }} aria-label="Configurar equipes">⚙</button></div>
-        </aside>
+      <section className="prototype-content-grid">
+        <article className="prototype-card prototype-map-card"><div className="prototype-section-heading"><div><h2>{suggested.size ? "Rotas dos chamados sugeridos" : "Visão geral das rotas"}</h2><p>{mapOrders.length} OS em análise · cores por equipe</p></div><span className="prototype-map-state">MAPA ILUSTRATIVO</span></div><div className="prototype-map" aria-label="Mapa ilustrativo"><div className="prototype-river" /><span className="prototype-road road-1" /><span className="prototype-road road-2" /><span className="prototype-road road-3" /><span className="prototype-road road-4" /><span className="prototype-road road-5" /><span className="prototype-district d1">SANTA CRUZ</span><span className="prototype-district d2">BENFICA</span><span className="prototype-district d3">CENTRO</span><span className="prototype-district d4">TEIXEIRAS</span><span className="prototype-district d5">VITORINO BRAGA</span>{mapOrders.slice(0, pinPositions.length).map((order, index) => { const team = teams.find((item) => item.id === assignments[order.id]); const [left, top] = pinPositions[index]; return <span key={order.id} className="prototype-pin" style={{ left: `${left}%`, top: `${top}%`, background: team?.color ?? "#9a9eaa" }}><i>{index + 1}</i></span>; })}<div className="prototype-map-legend">{activeTeams.map((team) => <span key={team.id}><i style={{ background: team.color }} />{team.name}</span>)}</div></div><div className="map-warning"><strong>Distância ainda não calculada</strong><span>A escolha usa recência e reclamações; proximidade real entra na etapa do mapa geográfico.</span></div></article>
+        <aside className="prototype-card prototype-team-panel"><div className="prototype-section-heading"><div><h2>Equipes</h2><p>Serviços e capacidade diária</p></div><button className="prototype-icon-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>⚙</button></div><div className="prototype-team-list">{activeTeams.map((team, index) => <button key={team.id} className={teamFilter === team.id ? "prototype-team-row active" : "prototype-team-row"} onClick={() => setTeamFilter(teamFilter === team.id ? "Todas" : team.id)}><span className="prototype-team-number" style={{ background: team.color }}>{index + 1}</span><div><strong>{team.name}</strong><span>{team.services.join(" + ")}</span></div><small>{teamCounts[team.id] ?? 0}/{team.capacity}</small><b>›</b></button>)}</div><div className="prototype-team-actions"><button className="prototype-outline-full" onClick={() => setTeamFilter("Todas")}>Todas as equipes</button><button className="prototype-settings-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>⚙</button></div></aside>
       </section>
 
       <section className="prototype-card prototype-orders-card">
-        <div className="prototype-section-heading prototype-orders-head"><div><h2>Ordens de serviço</h2><p>Filtre sem perder as OS que já marcou</p></div><div className="prototype-filters"><input aria-label="Buscar OS" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar OS, bairro ou endereço" /><select aria-label="Filtrar serviço" value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value as "Todos" | Service)}><option>Todos</option><option>Passeio</option><option>Muro</option><option>Vistoria</option></select><select aria-label="Filtrar atualização" value={stateFilter} onChange={(event) => setStateFilter(event.target.value as "Todos" | SyncState)}><option value="Todos">Toda a base</option><option value="new">Novas</option><option value="updated">Alteradas</option><option value="complaint">Reclamações</option><option value="reviewed">Conferidas</option><option value="not_seen">Não encontradas</option></select><button className="prototype-clear-button" onClick={() => { setSelected(new Set()); setCalculated(false); }}>Limpar</button></div></div>
-        <div className="prototype-selection-bar"><strong>{selected.size} selecionadas</strong><span>{filtered.length} visíveis com os filtros atuais.</span><button onClick={toggleVisible}>{allVisibleSelected ? "Desmarcar visíveis" : "Selecionar visíveis"}</button></div>
-        <div className="prototype-table-wrap"><table><thead><tr><th><input aria-label="Selecionar todas as OS visíveis" type="checkbox" checked={allVisibleSelected} onChange={toggleVisible} /></th><th>ATUALIZAÇÃO</th><th>ORDEM DE SERVIÇO</th><th>LOCAL</th><th>SERVIÇO</th><th>DETALHES IMPORTANTES</th><th>POR QUE ENTROU</th><th>EQUIPE SUGERIDA</th></tr></thead><tbody>{filtered.map((order) => {
-          const team = teams.find((item) => item.id === assignments[order.id]);
-          const orderReasons = reasons[order.id] ?? scored[order.id]?.reasons ?? [];
-          return <tr key={order.id} className={!selected.has(order.id) ? "row-off" : ""}><td><input aria-label={`Selecionar ${order.id}`} type="checkbox" checked={selected.has(order.id)} onChange={() => { setSelected((current) => { const next = new Set(current); if (next.has(order.id)) next.delete(order.id); else next.add(order.id); return next; }); setCalculated(false); }} /></td><td><span className={`sync-badge ${order.syncState}`}>{stateLabel(order.syncState)}</span></td><td><strong>{order.id}</strong><span>{order.requestedAt || "Data não informada"}</span></td><td><strong>{order.address}</strong><span>{order.neighborhood} · {order.region}</span></td><td><span className={`prototype-service-tag ${order.service.toLowerCase()}`}>{order.service}</span></td><td><span>{order.detail}</span></td><td><span className="reason-text">{orderReasons.slice(0, 2).join(" · ") || "seleção manual"}</span></td><td><span className="prototype-team-dot" style={{ background: team?.color ?? "#9a9eaa" }} />{team?.name ?? "A definir"}</td></tr>;
-        })}</tbody></table></div>
+        <div className="prototype-section-heading grid-heading"><div><h2>Base de chamados</h2><p>Ordene pelas setas do cabeçalho; a seleção permanece entre páginas e filtros.</p></div><div className="page-size"><span>Itens por página</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option>25</option><option>50</option><option>100</option></select></div></div>
+        <div className="database-filters">
+          <input aria-label="Buscar" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Buscar OS, bairro ou endereço" />
+          <label><span>De</span><input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} /></label>
+          <label><span>Até</span><input type="date" value={dateTo} min={dateFrom} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} /></label>
+          <select aria-label="Serviço" value={serviceFilter} onChange={(event) => { setServiceFilter(event.target.value as "Todos" | Service); setPage(1); }}><option>Todos</option><option>Passeio</option><option>Muro</option><option>Caixa Padrão</option></select>
+          <select aria-label="Atualização" value={stateFilter} onChange={(event) => { setStateFilter(event.target.value as "Todos" | SyncState); setPage(1); }}><option value="Todos">Todas as atualizações</option><option value="new">Novas</option><option value="updated">Alteradas</option><option value="complaint">Com reclamação</option><option value="reviewed">Conferidas</option><option value="not_seen">Não encontradas</option></select>
+          <select aria-label="Sugestão" value={suggestionFilter} onChange={(event) => { setSuggestionFilter(event.target.value as "Todos" | "Sugeridas"); setPage(1); }}><option value="Todos">Toda a base</option><option value="Sugeridas">Somente sugeridas</option></select>
+          <button className="prototype-clear-button" onClick={() => { setQuery(""); setDateFrom(""); setDateTo(""); setServiceFilter("Todos"); setStateFilter("Todos"); setSuggestionFilter("Todos"); setTeamFilter("Todas"); setPage(1); }}>Limpar filtros</button>
+        </div>
+        <div className="prototype-selection-bar"><strong>{selected.size} selecionadas</strong><span>{filteredSorted.length} resultados na base.</span><button onClick={togglePage}>{allPageSelected ? "Desmarcar página" : "Selecionar página"}</button></div>
+        <div className="prototype-table-wrap"><table className="smart-grid"><thead><tr><th className="selection-header"><input aria-label="Selecionar página" type="checkbox" checked={allPageSelected} onChange={togglePage} /><button onClick={() => changeSort("selected")} title="Ordenar selecionadas primeiro">{sortKey === "selected" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</button></th><th><SortHeader label="ATUALIZAÇÃO" sortKey="state" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>ORDEM DE SERVIÇO</th><th><SortHeader label="DATA" sortKey="date" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="LOCAL" sortKey="location" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="SERVIÇO" sortKey="service" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="RECLAMAÇÕES" sortKey="complaints" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>DETALHES</th><th><SortHeader label="SUGESTÃO ROTAOS" sortKey="suggestion" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>EQUIPE</th></tr></thead><tbody>{pageOrders.map((order) => { const team = teams.find((item) => item.id === assignments[order.id]); const isSuggested = suggested.has(order.id); return <tr key={order.id} className={!selected.has(order.id) ? "row-off" : ""}><td><input aria-label={`Selecionar ${order.id}`} type="checkbox" checked={selected.has(order.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(order.id)) next.delete(order.id); else next.add(order.id); return next; })} /></td><td><span className={`sync-badge ${order.syncState}`}>{stateLabel(order.syncState)}</span></td><td><strong>{order.id}</strong></td><td><strong>{order.requestedAt}</strong></td><td><strong>{order.address}</strong><span>{order.neighborhood} · {order.region}</span></td><td><span className={`prototype-service-tag ${order.service === "Caixa Padrão" ? "caixa" : order.service.toLowerCase()}`}>{order.serviceCode} · {order.service}</span></td><td><span className={order.complaintCount ? "complaint-count active" : "complaint-count"}>{order.complaintCount}</span>{order.latestComplaintAt && <small>última: {order.latestComplaintAt}</small>}</td><td><span>{order.detail}</span></td><td>{isSuggested ? <div className="suggestion-cell"><span>#{suggestionRank[order.id]} Sugerida</span><button onClick={() => { setExplainedOrderId(order.id); setModal("suggestion"); }}>Ver motivo</button></div> : <span className="not-suggested">—</span>}</td><td><span className="prototype-team-dot" style={{ background: team?.color ?? "#9a9eaa" }} />{team?.name ?? "A definir"}</td></tr>; })}</tbody></table></div>
+        <div className="grid-pagination"><span>Mostrando {filteredSorted.length ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, filteredSorted.length)} de {filteredSorted.length}</span><div><button disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>← Anterior</button><strong>Página {currentPage} de {totalPages}</strong><button disabled={currentPage === totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Próxima →</button></div></div>
       </section>
     </section>
 
-    {modal === "import" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><section className="modal import-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)} aria-label="Fechar">×</button><p className="modal-kicker">SINCRONIZAR COM O PROCESA</p><h2>Traga as OS sem alterar a CESAMA</h2><p>A extensão lê somente as páginas abertas. O RotaOS compara cada número e identifica novas, alteradas e conferidas.</p><div className="import-steps"><div><span>1</span><div><strong>Abra o Procesa</strong><small>Entre normalmente e aplique o período desejado.</small></div></div><div><span>2</span><div><strong>Escolha as OS</strong><small>Use “Enviar selecionadas” ou “Enviar visíveis”.</small></div></div><div><span>3</span><div><strong>Revise aqui</strong><small>Nada é distribuído automaticamente.</small></div></div></div><a className="primary button-link full" href="downloads/rotaos-ponte-procesa.zip" download>Baixar extensão RotaOS</a><button className="text-button" onClick={() => setModal(null)}>Já tenho a extensão</button></section></div>}
+    {modal === "import" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><section className="modal import-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)}>×</button><p className="modal-kicker">SINCRONIZAÇÃO</p><h2>A base será alimentada pelo Procesa</h2><p>No fluxo definitivo, a extensão enviará os registros para uma API segura. O banco compara, guarda histórico e o grid consulta essa base completa.</p><div className="import-steps"><div><span>1</span><div><strong>Extensão coleta</strong><small>Somente S025, S200 X e S201 X.</small></div></div><div><span>2</span><div><strong>Banco compara</strong><small>Insere novas, atualiza alteradas e preserva o histórico.</small></div></div><div><span>3</span><div><strong>Grid consulta</strong><small>Filtros, ordenação e paginação vêm da base.</small></div></div></div><div className="modal-warning">A API online ainda não está ativada neste DEV. Não trate a coleta local como base oficial.</div><a className="primary button-link full" href="downloads/rotaos-ponte-procesa.zip" download>Baixar extensão de teste</a></section></div>}
 
-    {modal === "teams" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><section className="modal team-settings-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)} aria-label="Fechar">×</button><p className="modal-kicker">EQUIPES E CAPACIDADE</p><h2>Quem pode fazer cada serviço?</h2><p>O limite diário evita que a sugestão sobrecarregue uma equipe.</p><div className="team-settings-list">{draftTeams.map((team) => <article key={team.id}><div className="team-settings-main"><input aria-label={`Cor de ${team.name}`} type="color" value={team.color} onChange={(event) => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, color: event.target.value } : item))} /><label><span>Nome da equipe</span><input value={team.name} onChange={(event) => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, name: event.target.value } : item))} /></label><label className="capacity-field"><span>Máximo de OS</span><input type="number" min="1" max="50" value={team.capacity} onChange={(event) => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, capacity: Math.max(1, Number(event.target.value)) } : item))} /></label><label className="team-active"><input type="checkbox" checked={team.active} onChange={(event) => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, active: event.target.checked } : item))} /><span>Ativa</span></label></div><div className="team-service-settings"><span>Tipos de trabalho</span>{(["Passeio", "Muro", "Vistoria"] as Service[]).map((service) => <label key={service}><input type="checkbox" checked={team.services.includes(service)} onChange={() => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, services: item.services.includes(service) ? item.services.filter((value) => value !== service) : [...item.services, service] } : item))} /><span>{service}</span></label>)}</div></article>)}</div><button className="add-team-button" onClick={() => setDraftTeams((current) => [...current, { id: `team-${Date.now()}`, name: `Equipe ${current.length + 1}`, color: "#35a56f", active: true, services: ["Passeio"], capacity: 5 }])}>＋ Adicionar equipe</button><div className="modal-actions"><button className="secondary" onClick={() => setModal(null)}>Cancelar</button><button className="primary" onClick={persistTeams}>Salvar equipes</button></div></section></div>}
+    {modal === "teams" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><section className="modal team-settings-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)}>×</button><p className="modal-kicker">EQUIPES E CAPACIDADE</p><h2>Quem pode executar cada serviço?</h2><div className="team-settings-list">{draftTeams.map((team) => <article key={team.id}><div className="team-settings-main"><input type="color" value={team.color} onChange={(event) => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, color: event.target.value } : item))} /><label><span>Nome da equipe</span><input value={team.name} onChange={(event) => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, name: event.target.value } : item))} /></label><label className="capacity-field"><span>Máximo de OS</span><input type="number" min="1" max="50" value={team.capacity} onChange={(event) => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, capacity: Math.max(1, Number(event.target.value)) } : item))} /></label><label className="team-active"><input type="checkbox" checked={team.active} onChange={(event) => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, active: event.target.checked } : item))} /><span>Ativa</span></label></div><div className="team-service-settings"><span>Tipos de trabalho</span>{(["Passeio", "Muro", "Caixa Padrão"] as Service[]).map((service) => <label key={service}><input type="checkbox" checked={team.services.includes(service)} onChange={() => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, services: item.services.includes(service) ? item.services.filter((value) => value !== service) : [...item.services, service] } : item))} /><span>{service}</span></label>)}</div></article>)}</div><button className="add-team-button" onClick={() => setDraftTeams((current) => [...current, { id: `team-${Date.now()}`, name: `Equipe ${current.length + 1}`, color: "#35a56f", active: true, services: ["Passeio"], capacity: 5 }])}>＋ Adicionar equipe</button><div className="modal-actions"><button className="secondary" onClick={() => setModal(null)}>Cancelar</button><button className="primary" onClick={persistTeams}>Salvar equipes</button></div></section></div>}
 
-    {modal === "rules" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><section className="modal rules-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)} aria-label="Fechar">×</button><p className="modal-kicker">CRITÉRIOS DA SUGESTÃO</p><h2>O que deve vir primeiro?</h2><p>Estes critérios são provisórios e serão ajustados com a Camilla.</p><div className="rules-list">{([
-      ["complaints", "Reclamações recentes", "Coloca retornos e reclamações no topo."],
-      ["deadlines", "Prazo crítico", "Prioriza OS com um dia ou menos."],
-      ["changes", "OS novas ou alteradas", "Mostra o que ainda precisa ser revisto."],
-      ["sameAddress", "Mesmo endereço", "Tenta manter serviços do mesmo imóvel juntos."],
-      ["recent", "Solicitações recentes", "Dá preferência às solicitações dos últimos dias."],
-    ] as [keyof SuggestionRules, string, string][]).map(([key, title, description]) => <label key={key}><input type="checkbox" checked={draftRules[key]} onChange={(event) => setDraftRules((current) => ({ ...current, [key]: event.target.checked }))} /><div><strong>{title}</strong><span>{description}</span></div></label>)}</div><div className="modal-actions"><button className="secondary" onClick={() => setModal(null)}>Cancelar</button><button className="primary" onClick={persistRules}>Salvar critérios</button></div></section></div>}
+    {modal === "rules" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><section className="modal rules-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)}>×</button><p className="modal-kicker">CRITÉRIOS DA SUGESTÃO</p><h2>O que torna um chamado interessante?</h2><p>A sugestão analisa toda a base filtrada e não altera a seleção manual.</p><div className="rules-list"><label><input type="checkbox" checked={draftRules.recent} onChange={(event) => setDraftRules((current) => ({ ...current, recent: event.target.checked }))} /><div><strong>Chamados mais recentes</strong><span>Quanto mais recente a solicitação, maior a pontuação.</span></div></label><label><input type="checkbox" checked={draftRules.complaints} onChange={(event) => setDraftRules((current) => ({ ...current, complaints: event.target.checked }))} /><div><strong>Quantidade de reclamações recentes</strong><span>Cada reclamação aumenta a prioridade, limitada para evitar distorções.</span></div></label></div><div className="criteria-note"><strong>Depois da escolha</strong><span>Compatibilidade da equipe, capacidade e mesmo endereço ajudam a formar as rotas, mas não decidem quais chamados são melhores.</span></div><div className="modal-actions"><button className="secondary" onClick={() => setModal(null)}>Cancelar</button><button className="primary" onClick={persistRules}>Salvar critérios</button></div></section></div>}
 
-    {modal === "login" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><form className="modal login-modal" onMouseDown={(event) => event.stopPropagation()} onSubmit={handleLogin}><button className="modal-close" type="button" onClick={() => setModal(null)} aria-label="Fechar">×</button><p className="modal-kicker">NUVEM ROTAOS</p><h2>Entrar no ambiente {environment}</h2><p>Use o acesso criado no Supabase. A senha do Procesa nunca é usada aqui.</p><label><span>E-mail</span><input type="email" required value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} /></label><label><span>Senha do RotaOS</span><input type="password" required value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} /></label>{loginError && <div className="modal-warning">{loginError}</div>}<button className="primary full" disabled={busy}>{busy ? "Entrando…" : "Entrar"}</button></form></div>}
+    {modal === "suggestion" && explainedOrder && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><section className="modal suggestion-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)}>×</button><p className="modal-kicker">SUGESTÃO #{suggestionRank[explainedOrder.id]}</p><h2>{explainedOrder.id}</h2><p>{explainedOrder.address} · {explainedOrder.neighborhood}</p><div className="suggestion-explanation">{suggestionReasons[explainedOrder.id]?.map((reason) => <span key={reason}>✓ {reason}</span>)}</div><div className="score-line"><span>Pontuação da sugestão</span><strong>{scores[explainedOrder.id]?.score ?? 0}</strong></div><p className="explanation-footnote">Essa pontuação apenas organiza as sugestões. A decisão final continua sendo da Camilla.</p></section></div>}
 
+    {modal === "login" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><form className="modal login-modal" onMouseDown={(event) => event.stopPropagation()} onSubmit={handleLogin}><button className="modal-close" type="button" onClick={() => setModal(null)}>×</button><p className="modal-kicker">BASE ONLINE</p><h2>Entrar no RotaOS</h2><p>A senha do Procesa nunca é usada aqui.</p><label><span>E-mail</span><input type="email" required value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} /></label><label><span>Senha do RotaOS</span><input type="password" required value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} /></label>{loginError && <div className="modal-warning">{loginError}</div>}<button className="primary full" disabled={busy}>{busy ? "Entrando…" : "Entrar"}</button></form></div>}
     {toast && <div className="toast" role="status">{toast}</div>}
   </main>;
 }

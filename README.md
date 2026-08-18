@@ -10,8 +10,10 @@ Planejamento e revisão de rotas de Ordens de Serviço, com sincronização incr
 - capacidade máxima diária por equipe;
 - seleção por checkbox para calcular somente as OS marcadas;
 - filtros de OS novas, alteradas, conferidas e com reclamação;
-- sugestão configurável por prazo, reclamação, atualização, mesma localização e data;
-- explicação do motivo de cada OS entrar na sugestão;
+- foco inicial em S025, S200 X e S201 X;
+- sugestão independente da seleção manual, baseada em recência e quantidade de reclamações;
+- explicação sob demanda do motivo de cada sugestão;
+- ordenação por cabeçalho, período e paginação do grid;
 - acumulação de todas as páginas do filtro atual pela extensão;
 - leitura dos detalhes disponíveis no modo de impressão;
 - agrupamento de OS que têm o mesmo endereço;
@@ -24,6 +26,8 @@ Planejamento e revisão de rotas de Ordens de Serviço, com sincronização incr
 A extensão é inicialmente somente leitura: ela não guarda login/senha e não distribui OS no Procesa.
 
 O esquema para Supabase está em `supabase/schema.sql`. Enquanto as credenciais de DEV não forem configuradas, a tela informa claramente que está em modo de demonstração e conserva a base apenas naquele navegador.
+
+A arquitetura aprovada e as regras de sincronização estão descritas em `docs/architecture.md`.
 
 Produção, custos, ganhos, mapa geográfico real e envio de volta ao Procesa continuam fora da interface enquanto o planejamento é validado.
 

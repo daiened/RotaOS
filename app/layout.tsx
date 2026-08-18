@@ -21,18 +21,18 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteBase),
-  title: "RotaOS — Planejamento inteligente de rotas",
-  description: "Sincronize ordens de serviço, identifique alterações e revise sugestões de rota para cada equipe.",
+  title: "RotaOS — Base completa e rotas inteligentes",
+  description: "Base persistente de chamados, filtros, reclamações e sugestões de rota.",
   openGraph: {
-    title: "RotaOS — Planejamento inteligente de rotas",
-    description: "Rotas inteligentes, revisão humana.",
-    images: [{ url: `${assetBase}/og-sync.png`, width: 1536, height: 1024, alt: "RotaOS — Rotas inteligentes, revisão humana" }],
+    title: "RotaOS — Base completa e rotas inteligentes",
+    description: "Base completa. Decisões melhores.",
+    images: [{ url: `${assetBase}/og-grid.png`, width: 1536, height: 1024, alt: "RotaOS — Base completa. Decisões melhores." }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "RotaOS — Planejamento inteligente de rotas",
-    description: "Rotas inteligentes, revisão humana.",
-    images: [`${assetBase}/og-sync.png`],
+    title: "RotaOS — Base completa e rotas inteligentes",
+    description: "Base completa. Decisões melhores.",
+    images: [`${assetBase}/og-grid.png`],
   },
   icons: {
     icon: `${assetBase}/favicon.svg`,
