@@ -16,7 +16,7 @@ import {
 type Service = "Passeio" | "Muro" | "Caixa Padrão";
 type ServiceCode = "S201 X" | "S200 X" | "S025";
 type SyncState = "new" | "updated" | "complaint" | "reviewed" | "not_seen" | "archived";
-type SortKey = "selected" | "date" | "complaints" | "service" | "location" | "suggestion" | "state";
+type SortKey = "selected" | "date" | "complaints" | "service" | "location" | "suggestion" | "state" | "team";
 type SortDirection = "asc" | "desc";
 type Modal = "import" | "teams" | "rules" | "login" | "suggestion" | null;
 
@@ -175,6 +175,7 @@ export default function Home() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const cloudReady = isSupabaseConfigured();
 
@@ -288,9 +289,10 @@ export default function Home() {
       if (sortKey === "location") comparison = `${a.neighborhood} ${a.address}`.localeCompare(`${b.neighborhood} ${b.address}`, "pt-BR");
       if (sortKey === "suggestion") comparison = (suggestionRank[a.id] ?? 9999) - (suggestionRank[b.id] ?? 9999);
       if (sortKey === "state") comparison = stateLabel(a.syncState).localeCompare(stateLabel(b.syncState), "pt-BR");
+      if (sortKey === "team") comparison = (teams.find((team) => team.id === assignments[a.id])?.name ?? "ZZZ").localeCompare(teams.find((team) => team.id === assignments[b.id])?.name ?? "ZZZ", "pt-BR");
       return comparison * factor || parseRequestedAt(b.requestedAt) - parseRequestedAt(a.requestedAt);
     });
-  }, [assignments, dateFrom, dateTo, orders, query, selected, serviceFilter, sortDirection, sortKey, stateFilter, suggested, suggestionFilter, suggestionRank, teamFilter]);
+  }, [assignments, dateFrom, dateTo, orders, query, selected, serviceFilter, sortDirection, sortKey, stateFilter, suggested, suggestionFilter, suggestionRank, teamFilter, teams]);
 
   const totalPages = Math.max(1, Math.ceil(filteredSorted.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -305,7 +307,7 @@ export default function Home() {
 
   function changeSort(key: SortKey) {
     if (sortKey === key) setSortDirection((current) => current === "asc" ? "desc" : "asc");
-    else { setSortKey(key); setSortDirection(key === "service" || key === "location" || key === "state" ? "asc" : "desc"); }
+    else { setSortKey(key); setSortDirection(key === "service" || key === "location" || key === "state" || key === "team" ? "asc" : "desc"); }
     setPage(1);
   }
 
@@ -367,9 +369,9 @@ export default function Home() {
     setSuggested(new Set()); setSuggestionFilter("Todos"); setModal(null); setToast("Critérios atualizados. Gere uma nova sugestão.");
   }
 
-  return <main className="app-shell">
+  return <main className={sidebarCollapsed ? "app-shell sidebar-is-collapsed" : "app-shell"}>
     <aside className="sidebar">
-      <div className="brand"><span className="brand-mark">R</span><span>RotaOS</span></div>
+      <button className="brand" onClick={() => setSidebarCollapsed((current) => !current)} aria-label={sidebarCollapsed ? "Mostrar menu lateral" : "Ocultar menu lateral"} title={sidebarCollapsed ? "Mostrar menu lateral" : "Ocultar menu lateral"}><span className="brand-mark">R</span><span>RotaOS</span></button>
       <nav className="module-switcher" aria-label="Módulos"><button className="current-module active"><span>01</span><div><strong>Planejamento</strong><small>base e rotas</small></div></button></nav>
       <div className="sidebar-note environment-note"><span>AMBIENTE DEV</span><strong>Validação pública</strong><p>A Produção continua intacta até a Camilla aprovar esta versão.</p></div>
       <div className={`cloud-status ${userEmail ? "connected" : ""}`}><i /><div><strong>{userEmail ? "Banco conectado" : cloudReady ? "Aguardando login" : "Banco ainda não conectado"}</strong><small>{userEmail ?? "DEV demonstrativo"}</small></div></div>
@@ -406,7 +408,7 @@ export default function Home() {
           <button className="prototype-clear-button" onClick={() => { setQuery(""); setDateFrom(""); setDateTo(""); setServiceFilter("Todos"); setStateFilter("Todos"); setSuggestionFilter("Todos"); setTeamFilter("Todas"); setPage(1); }}>Limpar filtros</button>
         </div>
         <div className="prototype-selection-bar"><strong>{selected.size} selecionadas</strong><span>{filteredSorted.length} resultados na base.</span><button onClick={togglePage}>{allPageSelected ? "Desmarcar página" : "Selecionar página"}</button></div>
-        <div className="prototype-table-wrap"><table className="smart-grid"><thead><tr><th className="selection-header"><input aria-label="Selecionar página" type="checkbox" checked={allPageSelected} onChange={togglePage} /><button onClick={() => changeSort("selected")} title="Ordenar selecionadas primeiro">{sortKey === "selected" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</button></th><th><SortHeader label="ATUALIZAÇÃO" sortKey="state" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>ORDEM DE SERVIÇO</th><th><SortHeader label="DATA" sortKey="date" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="LOCAL" sortKey="location" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="SERVIÇO" sortKey="service" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="RECLAMAÇÕES" sortKey="complaints" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>DETALHES</th><th><SortHeader label="SUGESTÃO ROTAOS" sortKey="suggestion" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>EQUIPE</th></tr></thead><tbody>{pageOrders.map((order) => { const team = teams.find((item) => item.id === assignments[order.id]); const isSuggested = suggested.has(order.id); return <tr key={order.id} className={!selected.has(order.id) ? "row-off" : ""}><td><input aria-label={`Selecionar ${order.id}`} type="checkbox" checked={selected.has(order.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(order.id)) next.delete(order.id); else next.add(order.id); return next; })} /></td><td><span className={`sync-badge ${order.syncState}`}>{stateLabel(order.syncState)}</span></td><td><strong>{order.id}</strong></td><td><strong>{order.requestedAt}</strong></td><td><strong>{order.address}</strong><span>{order.neighborhood} · {order.region}</span></td><td><span className={`prototype-service-tag ${order.service === "Caixa Padrão" ? "caixa" : order.service.toLowerCase()}`}>{order.serviceCode} · {order.service}</span></td><td><span className={order.complaintCount ? "complaint-count active" : "complaint-count"}>{order.complaintCount}</span>{order.latestComplaintAt && <small>última: {order.latestComplaintAt}</small>}</td><td><span>{order.detail}</span></td><td>{isSuggested ? <div className="suggestion-cell"><span>#{suggestionRank[order.id]} Sugerida</span><button onClick={() => { setExplainedOrderId(order.id); setModal("suggestion"); }}>Ver motivo</button></div> : <span className="not-suggested">—</span>}</td><td><span className="prototype-team-dot" style={{ background: team?.color ?? "#9a9eaa" }} />{team?.name ?? "A definir"}</td></tr>; })}</tbody></table></div>
+        <div className="prototype-table-wrap"><table className="smart-grid"><thead><tr><th className="selection-header"><input aria-label="Selecionar página" type="checkbox" checked={allPageSelected} onChange={togglePage} /><button onClick={() => changeSort("selected")} title="Ordenar selecionadas primeiro">{sortKey === "selected" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</button></th><th><SortHeader label="ATUALIZAÇÃO" sortKey="state" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>ORDEM DE SERVIÇO</th><th><SortHeader label="DATA" sortKey="date" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="LOCAL" sortKey="location" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="SERVIÇO" sortKey="service" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="RECLAMAÇÕES" sortKey="complaints" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>DETALHES</th><th><SortHeader label="SUGESTÃO ROTAOS" sortKey="suggestion" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="EQUIPE" sortKey="team" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th></tr></thead><tbody>{pageOrders.map((order) => { const team = teams.find((item) => item.id === assignments[order.id]); const isSuggested = suggested.has(order.id); return <tr key={order.id} className={!selected.has(order.id) ? "row-off" : ""}><td><input aria-label={`Selecionar ${order.id}`} type="checkbox" checked={selected.has(order.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(order.id)) next.delete(order.id); else next.add(order.id); return next; })} /></td><td><span className={`sync-badge ${order.syncState}`}>{stateLabel(order.syncState)}</span></td><td><strong>{order.id}</strong></td><td><strong>{order.requestedAt}</strong></td><td><strong>{order.address}</strong><span>{order.neighborhood} · {order.region}</span></td><td><span className={`prototype-service-tag ${order.service === "Caixa Padrão" ? "caixa" : order.service.toLowerCase()}`}>{order.serviceCode} · {order.service}</span></td><td><span className={order.complaintCount ? "complaint-count active" : "complaint-count"}>{order.complaintCount}</span>{order.latestComplaintAt && <small>última: {order.latestComplaintAt}</small>}</td><td><span>{order.detail}</span></td><td>{isSuggested ? <div className="suggestion-cell"><span>#{suggestionRank[order.id]} Sugerida</span><button onClick={() => { setExplainedOrderId(order.id); setModal("suggestion"); }}>Ver motivo</button></div> : <span className="not-suggested">—</span>}</td><td><span className="prototype-team-dot" style={{ background: team?.color ?? "#9a9eaa" }} />{team?.name ?? "A definir"}</td></tr>; })}</tbody></table></div>
         <div className="grid-pagination"><span>Mostrando {filteredSorted.length ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, filteredSorted.length)} de {filteredSorted.length}</span><div><button disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>← Anterior</button><strong>Página {currentPage} de {totalPages}</strong><button disabled={currentPage === totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Próxima →</button></div></div>
       </section>
     </section>

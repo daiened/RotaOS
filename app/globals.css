@@ -23,7 +23,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 
 .app-shell { min-height: 100vh; display: flex; }
 .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 10; width: 240px; padding: 27px 18px 22px; display: flex; flex-direction: column; background: #fff; border-right: 1px solid var(--line); }
-.brand { display: flex; align-items: center; gap: 11px; padding: 0 8px 30px; font-size: 20px; font-weight: 850; letter-spacing: -.5px; }
+.brand { display: flex; align-items: center; gap: 11px; padding: 0 8px 30px; color: var(--ink); background: transparent; border: 0; font-size: 20px; font-weight: 850; letter-spacing: -.5px; text-align: left; }
+.sidebar-is-collapsed .sidebar { width: 70px; padding-inline: 10px; }
+.sidebar-is-collapsed .brand { padding-inline: 8px; }
+.sidebar-is-collapsed .brand > span:last-child, .sidebar-is-collapsed .current-module > div, .sidebar-is-collapsed .sidebar-note, .sidebar-is-collapsed .cloud-status { display: none; }
+.sidebar-is-collapsed .current-module { justify-content: center; padding-inline: 8px; }
+.sidebar-is-collapsed .workspace { width: calc(100% - 70px); margin-left: 70px; }
 .brand-mark { width: 35px; height: 35px; display: grid; place-items: center; color: #fff; border-radius: 11px; background: linear-gradient(145deg, #8a71eb, #5d42c2); box-shadow: 0 8px 18px #6e55d73d; }
 .module-switcher { display: grid; gap: 8px; }
 .current-module { width: 100%; padding: 13px; display: flex; align-items: center; gap: 11px; color: #696e7d; background: transparent; border: 1px solid transparent; border-radius: 10px; text-align: left; }
