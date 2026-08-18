@@ -9,15 +9,17 @@ test("gera o painel estático do RotaOS", async () => {
   const pageSource = await readFile(new URL("app/page.tsx", root), "utf8");
   assert.match(html, /<html lang="pt-BR"/);
   assert.match(html, /RotaOS/);
-  assert.match(html, /Monte a próxima rota/);
+  assert.match(html, /Rotas de hoje/);
   assert.match(html, /Importar do Procesa/);
-  assert.match(html, /Escolha o que entra na rota/);
+  assert.match(html, /Calcular rotas/);
+  assert.match(html, /Escolha as ordens da rota/);
   assert.doesNotMatch(html, /Produção das equipes/);
   assert.doesNotMatch(html, />Integrações</);
-  assert.match(html, /og-comparacao\.png/);
-  assert.match(pageSource, /02 · VISUAL DE COMPARAÇÃO/);
+  assert.match(html, /og-equipes\.png/);
+  assert.match(pageSource, /02 · PLANEJAMENTO POR EQUIPE/);
   assert.match(pageSource, /Mapa e equipes/);
-  assert.match(pageSource, /O mapa, os quilômetros e os tempos abaixo são ilustrativos/);
+  assert.match(pageSource, /CONFIGURAÇÃO DAS EQUIPES/);
+  assert.match(pageSource, /rotaos-team-settings/);
 });
 
 test("mantém a ponte do Procesa somente leitura", async () => {

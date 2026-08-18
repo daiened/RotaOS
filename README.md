@@ -5,6 +5,9 @@ Protótipo focado em planejamento e revisão de rotas de Ordens de Serviço.
 ## O que já funciona
 
 - recebimento de OS selecionadas ou visíveis no Procesa pela extensão local;
+- tela principal com mapa ilustrativo e divisão das OS por equipe;
+- configuração local do nome, cor e tipos de serviço de cada equipe;
+- seleção por checkbox para calcular somente as OS marcadas;
 - leitura dos detalhes disponíveis no modo de impressão;
 - agrupamento de OS que têm o mesmo endereço;
 - seleção e filtros simples por serviço e alertas;
