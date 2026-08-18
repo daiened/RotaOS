@@ -3,6 +3,11 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 const assetBase = process.env.GITHUB_ACTIONS ? "/RotaOS" : "";
+const siteBase = process.env.GITHUB_ACTIONS
+  ? "https://daiened.github.io/RotaOS/"
+  : process.env.NEXT_PUBLIC_ROTAOS_ENV === "development"
+    ? "https://rotaos-dev.daieneduarte.chatgpt.site/"
+    : "https://rotaos-planejamento.daieneduarte.chatgpt.site/";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,7 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.GITHUB_ACTIONS ? "https://daiened.github.io/RotaOS/" : "https://rotaos-planejamento.daieneduarte.chatgpt.site/"),
+  metadataBase: new URL(siteBase),
   title: "RotaOS — Planejamento inteligente de rotas",
   description: "Sincronize ordens de serviço, identifique alterações e revise sugestões de rota para cada equipe.",
   openGraph: {

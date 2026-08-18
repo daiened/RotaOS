@@ -161,7 +161,7 @@ export default function Home() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const host = window.location.hostname;
-      setEnvironment(host.includes("daiened.github.io") || host === "localhost" ? "DEV" : "PRODUÇÃO");
+      setEnvironment(host.includes("daiened.github.io") || host.includes("rotaos-dev") || host === "localhost" ? "DEV" : "PRODUÇÃO");
       const localTeams = window.localStorage.getItem("rotaos-team-settings-v2");
       const localOrders = window.localStorage.getItem("rotaos-dev-orders");
       const localRules = window.localStorage.getItem("rotaos-suggestion-rules");

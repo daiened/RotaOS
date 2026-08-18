@@ -20,6 +20,7 @@
     {
       "matches": [
         "https://daiened.github.io/RotaOS/*",
+        "https://rotaos-dev.daieneduarte.chatgpt.site/*",
         "https://rotaos-planejamento.daieneduarte.chatgpt.site/*"
       ],
       "js": ["rotaos-bridge.js"],
