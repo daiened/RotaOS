@@ -16,18 +16,18 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.GITHUB_ACTIONS ? "https://daiened.github.io/RotaOS/" : "https://rotaos-planejamento.daieneduarte.chatgpt.site/"),
-  title: "RotaOS — Rotas por equipe",
-  description: "Selecione ordens de serviço e organize uma sugestão de rota para cada equipe.",
+  title: "RotaOS — Planejamento inteligente de rotas",
+  description: "Sincronize ordens de serviço, identifique alterações e revise sugestões de rota para cada equipe.",
   openGraph: {
-    title: "RotaOS — Rotas por equipe",
-    description: "Selecione ordens de serviço e organize uma sugestão de rota para cada equipe.",
-    images: [{ url: `${assetBase}/og-equipes.png`, width: 1536, height: 1024, alt: "RotaOS — Rotas por equipe" }],
+    title: "RotaOS — Planejamento inteligente de rotas",
+    description: "Rotas inteligentes, revisão humana.",
+    images: [{ url: `${assetBase}/og-sync.png`, width: 1536, height: 1024, alt: "RotaOS — Rotas inteligentes, revisão humana" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "RotaOS — Rotas por equipe",
-    description: "Selecione ordens de serviço e organize uma sugestão de rota para cada equipe.",
-    images: [`${assetBase}/og-equipes.png`],
+    title: "RotaOS — Planejamento inteligente de rotas",
+    description: "Rotas inteligentes, revisão humana.",
+    images: [`${assetBase}/og-sync.png`],
   },
   icons: {
     icon: `${assetBase}/favicon.svg`,

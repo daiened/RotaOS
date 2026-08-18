@@ -1,13 +1,18 @@
 # RotaOS
 
-Protótipo focado em planejamento e revisão de rotas de Ordens de Serviço.
+Planejamento e revisão de rotas de Ordens de Serviço, com sincronização incremental e sugestão explicável por equipe.
 
 ## O que já funciona
 
 - recebimento de OS selecionadas ou visíveis no Procesa pela extensão local;
-- tela principal com mapa ilustrativo e divisão das OS por equipe;
+- tela principal única com mapa ilustrativo e divisão das OS por equipe;
 - configuração local do nome, cor e tipos de serviço de cada equipe;
+- capacidade máxima diária por equipe;
 - seleção por checkbox para calcular somente as OS marcadas;
+- filtros de OS novas, alteradas, conferidas e com reclamação;
+- sugestão configurável por prazo, reclamação, atualização, mesma localização e data;
+- explicação do motivo de cada OS entrar na sugestão;
+- acumulação de todas as páginas do filtro atual pela extensão;
 - leitura dos detalhes disponíveis no modo de impressão;
 - agrupamento de OS que têm o mesmo endereço;
 - seleção e filtros simples por serviço e alertas;
@@ -18,7 +23,9 @@ Protótipo focado em planejamento e revisão de rotas de Ordens de Serviço.
 
 A extensão é inicialmente somente leitura: ela não guarda login/senha e não distribui OS no Procesa.
 
-Produção, custos e ganhos estão fora da interface enquanto o módulo de planejamento é validado.
+O esquema para Supabase está em `supabase/schema.sql`. Enquanto as credenciais de DEV não forem configuradas, a tela informa claramente que está em modo de demonstração e conserva a base apenas naquele navegador.
+
+Produção, custos, ganhos, mapa geográfico real e envio de volta ao Procesa continuam fora da interface enquanto o planejamento é validado.
 
 ## Desenvolvimento
 

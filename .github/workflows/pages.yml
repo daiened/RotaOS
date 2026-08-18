@@ -1,8 +1,8 @@
-name: Publicar RotaOS
+name: Publicar RotaOS DEV
 
 on:
   push:
-    branches: [main]
+    branches: [codex/dev]
   workflow_dispatch:
 
 permissions:
@@ -31,6 +31,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+        env:
+          NEXT_PUBLIC_ROTAOS_ENV: development
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.DEV_SUPABASE_PUBLISHABLE_KEY }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

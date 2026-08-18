@@ -23,7 +23,7 @@
     if (event.source === window && event.data?.type === "ROTAOS_IMPORT_ACCEPTED") {
       accepted = true;
       window.clearTimeout(timer);
-      chrome.storage.local.remove("rotaosImportQueue");
+      chrome.storage.local.remove(["rotaosImportQueue", "rotaosSyncSession", "rotaosAutoSync"]);
     }
   });
   deliverWhenReady();

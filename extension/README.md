@@ -1,6 +1,14 @@
 # Ponte do Procesa para o RotaOS
 
-Extensão local, inicialmente somente leitura, que coleta as OS selecionadas ou as OS visíveis na tabela do Procesa e abre o RotaOS já preenchido.
+Extensão local e somente leitura que coleta as OS selecionadas ou todas as páginas do filtro atual no Procesa e abre o RotaOS já preenchido.
+
+## Sincronização
+
+- **Enviar selecionadas:** envia apenas as caixas marcadas na página atual.
+- **Todas as páginas do filtro:** percorre a paginação disponível, elimina números repetidos e abre a base acumulada no RotaOS.
+- **Abrir base acumulada:** retoma uma coleta preservada caso a paginação pare ou a página seja recarregada.
+
+O filtro de período continua sendo escolhido no Procesa. A automação de várias datas será adicionada depois de validarmos o seletor de data usado nessa tela.
 
 ## Instalação de teste
 
@@ -12,4 +20,4 @@ Extensão local, inicialmente somente leitura, que coleta as OS selecionadas ou 
 
 Ao atualizar a extensão, volte a `chrome://extensions`, clique em **Recarregar** no cartão do RotaOS e depois recarregue a página do Procesa.
 
-A extensão não guarda login ou senha e não distribui OS. Ela usa apenas a sessão que já está aberta no navegador para ler os dados escolhidos.
+A extensão não guarda login ou senha e não distribui OS. Ela usa apenas a sessão que já está aberta no navegador para ler os dados escolhidos. A paginação automática apenas navega entre as páginas do resultado atual.

@@ -22,7 +22,9 @@
 .rotaos-bridge-body p { margin: 0 0 10px; color: #7d8191; font-size: 9px; }
 .rotaos-bridge-body > button { width: 100%; margin-top: 7px; padding: 9px; border: 1px solid #5f46c3; color: #fff; background: #6e55d7; border-radius: 8px; font-size: 10px; font-weight: 800; }
 .rotaos-bridge-body > button.secondary { color: #514c68; background: #fff; border-color: #dddde5; }
+.rotaos-bridge-body > button.text { padding: 5px; color: #7465ae; background: transparent; border-color: transparent; }
 .rotaos-bridge-body > button:disabled { opacity: .6; }
+#rotaos-bridge-progress { min-height: 11px; margin-top: 8px; color: #6651bf; font-weight: 700; }
 #rotaos-bridge-message { min-height: 12px; margin-top: 9px; color: #2f805a; line-height: 1.35; }
 #rotaos-bridge-message.error { color: #b15242; }
 #rotaos-procesa-bridge.collapsed .rotaos-bridge-body { display: none; }
