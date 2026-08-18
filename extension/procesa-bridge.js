@@ -90,6 +90,13 @@
       showMessage(mode === "selected" ? "Selecione ao menos uma OS." : "Nenhuma OS visível foi encontrada.", true);
       return;
     }
+    const rotaTab = window.open("about:blank", "_blank");
+    if (!rotaTab) {
+      showMessage("O navegador bloqueou a nova aba. Permita pop-ups para o Procesa e tente novamente.", true);
+      return;
+    }
+    rotaTab.opener = null;
+    rotaTab.location.href = ROTAOS_URL;
     if (button) {
       button.disabled = true;
       button.textContent = "Lendo detalhes…";
@@ -115,7 +122,15 @@
       })),
     };
     chrome.storage.local.set({ rotaosImportQueue: payload }, () => {
-      window.open(ROTAOS_URL, "_blank", "noopener,noreferrer");
+      if (chrome.runtime.lastError) {
+        rotaTab.close();
+        showMessage("Não foi possível preparar as OS. Recarregue a página e tente novamente.", true);
+        if (button) {
+          button.disabled = false;
+          button.textContent = mode === "selected" ? "Enviar selecionadas" : "Enviar visíveis";
+        }
+        return;
+      }
       showMessage(`${rows.length} OS preparadas. O RotaOS foi aberto em outra aba.`);
       if (button) {
         button.disabled = false;

@@ -25,10 +25,14 @@ test("gera o painel estático do RotaOS", async () => {
 test("mantém a ponte do Procesa somente leitura", async () => {
   const manifest = JSON.parse(await readFile(new URL("extension/manifest.json", root), "utf8"));
   const bridge = await readFile(new URL("extension/procesa-bridge.js", root), "utf8");
+  const landingBridge = await readFile(new URL("extension/rotaos-bridge.js", root), "utf8");
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ["storage"]);
   assert.deepEqual(manifest.host_permissions, ["https://procesama.linedata.com.br/*"]);
   assert.match(bridge, /Somente leitura/);
+  assert.match(bridge, /window\.open\("about:blank"/);
+  assert.match(landingBridge, /MAX_DELIVERY_ATTEMPTS = 40/);
+  assert.match(landingBridge, /ROTAOS_IMPORT_ACCEPTED/);
   assert.doesNotMatch(bridge, /password|senha|submit\(\)/i);
   await access(new URL("public/downloads/rotaos-ponte-procesa.zip", root));
 });

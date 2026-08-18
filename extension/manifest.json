@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "RotaOS · Ponte do Procesa",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Envia ordens selecionadas ou visíveis do Procesa para o RotaOS sem alterar o sistema da CESAMA.",
   "permissions": ["storage"],
   "host_permissions": [
