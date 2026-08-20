@@ -193,7 +193,6 @@ export default function Home() {
   const [modal, setModal] = useState<Modal>(null);
   const [explainedOrderId, setExplainedOrderId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
-  const [routeCalculated, setRouteCalculated] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -366,7 +365,6 @@ export default function Home() {
     });
     if (!Object.keys(next).length) { setToast("Nenhuma equipe ativa e compatível tinha capacidade para essas OS."); return; }
     setAssignments((current) => ({ ...current, ...next }));
-    setRouteCalculated(true);
     setToast(`${label} distribuída entre as equipes para revisão. Nada foi enviado ao Procesa.`);
   }
 
@@ -403,7 +401,7 @@ export default function Home() {
 
   async function persistTeams() {
     setTeams(draftTeams); window.localStorage.setItem("rotaos-team-settings-v3", JSON.stringify(draftTeams));
-    setModal(null); setRouteCalculated(false);
+    setModal(null);
     if (cloudReady && userEmail) {
       try { await saveTeamsToCloud(draftTeams); setToast("Equipes e capacidades salvas na base online."); }
       catch { setToast("Equipes salvas apenas neste navegador."); }
@@ -435,7 +433,7 @@ export default function Home() {
     </aside>
 
     <section className={`workspace prototype-workspace ${gridFocus ? "grid-focus" : ""}`}>
-      <header className="topbar prototype-topbar"><div><p className="eyebrow">PLANEJAMENTO DE ROTAS</p><h1>Chamados da Camilla</h1></div><div className="header-actions"><button className="icon-action" onClick={() => { setDraftRules(rules); setModal("rules"); }} aria-label="Configurar critérios">⚙</button></div></header>
+      <header className="topbar prototype-topbar"><div><p className="eyebrow">PLANEJAMENTO DE ROTAS</p><h1>Chamados da Camilla</h1></div></header>
 
       <div className="architecture-banner"><strong>Fluxo definitivo</strong><span>Extensão → banco protegido → grid. O grid consultará sempre a base completa, não somente a última coleta.</span><em>{cloudReady && userEmail ? "Base online carregada" : cloudReady ? "Clique em Entrar, no topo da página" : "Conexão online pendente"}</em></div>
 
@@ -446,23 +444,20 @@ export default function Home() {
         <article><span className="prototype-metric-icon green">✓</span><div><p>Selecionadas</p><strong>{selected.size}</strong><small>escolha manual da Camilla</small></div></article>
       </section>
 
-      <div className={routeCalculated ? "prototype-notice calculated" : "prototype-notice"}><span>{routeCalculated ? "✓" : "○"}</span><div><strong>{selected.size} chamados escolhidos manualmente</strong><p>A sugestão do RotaOS não marca nem desmarca estes chamados.</p></div><button className="overview-toggle" onClick={() => setGridFocus((current) => !current)}>{gridFocus ? "Mostrar visão completa" : "Focar base de chamados"}</button><button onClick={() => distribute(selected, "Seleção manual")}>Calcular rotas da seleção →</button></div>
 
       <section className="prototype-content-grid">
         <article className="prototype-card prototype-map-card"><div className="prototype-section-heading"><div><h2>{suggested.size ? "Rotas dos chamados sugeridos" : "Visão geral das rotas"}</h2><p>{mapOrders.length} OS em análise · cores por equipe</p></div><span className="prototype-map-state">MAPA ILUSTRATIVO</span></div><div className="prototype-map" aria-label="Mapa ilustrativo"><div className="prototype-river" /><span className="prototype-road road-1" /><span className="prototype-road road-2" /><span className="prototype-road road-3" /><span className="prototype-road road-4" /><span className="prototype-road road-5" /><span className="prototype-district d1">SANTA CRUZ</span><span className="prototype-district d2">BENFICA</span><span className="prototype-district d3">CENTRO</span><span className="prototype-district d4">TEIXEIRAS</span><span className="prototype-district d5">VITORINO BRAGA</span>{mapOrders.slice(0, pinPositions.length).map((order, index) => { const team = teams.find((item) => item.id === assignments[order.id]); const [left, top] = pinPositions[index]; return <span key={order.id} className="prototype-pin" style={{ left: `${left}%`, top: `${top}%`, background: team?.color ?? "#9a9eaa" }}><i>{index + 1}</i></span>; })}<div className="prototype-map-legend">{activeTeams.map((team) => <span key={team.id}><i style={{ background: team.color }} />{team.name}</span>)}</div></div><div className="map-warning"><strong>Distância ainda não calculada</strong><span>A escolha usa recência e reclamações; proximidade real entra na etapa do mapa geográfico.</span></div></article>
-        <aside className="prototype-card prototype-team-panel"><div className="prototype-section-heading"><div><h2>Equipes</h2><p>Serviços e capacidade diária</p></div><button className="prototype-icon-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>⚙</button></div><div className="prototype-team-list">{activeTeams.map((team, index) => <button key={team.id} className={teamFilter === team.id ? "prototype-team-row active" : "prototype-team-row"} onClick={() => setTeamFilter(teamFilter === team.id ? "Todas" : team.id)}><span className="prototype-team-number" style={{ background: team.color }}>{index + 1}</span><div><strong>{team.name}</strong><span>{team.services.join(" + ")}</span></div><small>{teamCounts[team.id] ?? 0}/{team.capacity}</small><b>›</b></button>)}</div><div className="prototype-team-actions"><button className="prototype-outline-full" onClick={() => setTeamFilter("Todas")}>Todas as equipes</button><button className="prototype-settings-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>⚙</button></div></aside>
+        <aside className="prototype-card prototype-team-panel"><div className="prototype-section-heading"><div><h2>Equipes</h2><p>Serviços e capacidade diária</p></div></div><div className="prototype-team-list">{activeTeams.map((team, index) => <button key={team.id} className={teamFilter === team.id ? "prototype-team-row active" : "prototype-team-row"} onClick={() => setTeamFilter(teamFilter === team.id ? "Todas" : team.id)}><span className="prototype-team-number" style={{ background: team.color }}>{index + 1}</span><div><strong>{team.name}</strong><span>{team.services.join(" + ")}</span></div><small>{teamCounts[team.id] ?? 0}/{team.capacity}</small><b>›</b></button>)}</div><div className="prototype-team-actions"><button className="prototype-outline-full" onClick={() => setTeamFilter("Todas")}>Todas as equipes</button></div><div className="team-dashboard-actions"><div><button className="secondary" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>Configurar equipes</button><button className="secondary" onClick={() => { setDraftRules(rules); setModal("rules"); }}>Critérios</button></div><div className="grid-actions"><button className="primary smart-button" onClick={createSuggestion}>✦ Sugerir melhores chamados</button><button className="secondary" onClick={() => distribute(selected, "Seleção manual")}>Calcular rotas da seleção →</button></div></div></aside>
       </section>
-
-      <div className="grid-actions"><button className="primary smart-button" onClick={createSuggestion}>✦ Sugerir melhores chamados</button><button className="secondary" onClick={() => distribute(selected, "Seleção manual")}>Calcular rotas da seleção →</button></div>
       {orders.some((order) => order.processaTeam) && <div className="processa-team-alert"><strong>Atenção para validação com a Camilla</strong><span>{orders.filter((order) => order.processaTeam).length} OS já exibem uma equipe no Procesa. Isso pode indicar uma distribuição anterior ainda não finalizada; o RotaOS não as atribui automaticamente.</span></div>}
       <section className="prototype-card prototype-orders-card">
-        <div className="prototype-section-heading grid-heading"><div><h2>Base de chamados</h2><p>Ordene pelas setas do cabeçalho; a seleção permanece entre páginas e filtros.</p></div><div className="page-size"><span>Itens por página</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option>25</option><option>50</option><option>100</option></select></div></div>
+        <div className="prototype-section-heading grid-heading"><div><h2>Base de chamados</h2><p>Ordene pelas setas do cabeçalho; a seleção permanece entre páginas e filtros.</p></div><div className="grid-heading-actions"><button className="grid-expand" onClick={() => setGridFocus((current) => !current)} title={gridFocus ? "Mostrar visão completa" : "Focar base de chamados"}>{gridFocus ? "⤢" : "⤡"}</button><div className="page-size"><span>Itens por página</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option>25</option><option>50</option><option>100</option></select></div></div></div>
         <div className="database-filters">
           <input aria-label="Buscar" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Buscar OS, bairro ou endereço" />
           <label><span>De</span><input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} /></label>
           <label><span>Até</span><input type="date" value={dateTo} min={dateFrom} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} /></label>
           <select aria-label="Serviço" value={serviceFilter} onChange={(event) => { setServiceFilter(event.target.value as "Todos" | Service); setPage(1); }}><option>Todos</option><option>Passeio</option><option>Muro</option><option>Caixa Padrão</option></select>
-          <details className="state-multifilter"><summary>{!stateFilter.length ? "Todas as atualizações" : stateFilter.length === 1 ? "1 atualização selecionada" : `${stateFilter.length} atualizações selecionadas`}</summary><div>{(["new", "updated", "complaint", "reviewed", "not_seen"] as SyncState[]).map((state) => <label key={state}><input type="checkbox" checked={stateFilter.includes(state)} onChange={() => { setStateFilter((current) => current.includes(state) ? current.filter((item) => item !== state) : [...current, state]); setPage(1); }} />{stateLabel(state)}</label>)}</div></details>
+          <details className="state-multifilter"><summary>{!stateFilter.length ? "Todas as atualizações" : stateFilter.map((state) => <span key={state}>{stateLabel(state)}</span>)}</summary><div>{(["new", "updated", "complaint", "reviewed", "not_seen"] as SyncState[]).map((state) => <button key={state} type="button" className={stateFilter.includes(state) ? "selected" : ""} onClick={() => { setStateFilter((current) => current.includes(state) ? current.filter((item) => item !== state) : [...current, state]); setPage(1); }}>{stateLabel(state)}</button>)}</div></details>
           <select aria-label="Sugestão" value={suggestionFilter} onChange={(event) => { setSuggestionFilter(event.target.value as "Todos" | "Sugeridas"); setPage(1); }}><option value="Todos">Toda a base</option><option value="Sugeridas">Somente sugeridas</option></select>
           <button className="prototype-clear-button" onClick={() => { setQuery(""); setDateFrom(""); setDateTo(""); setServiceFilter("Todos"); setStateFilter([]); setSuggestionFilter("Todos"); setTeamFilter("Todas"); setPage(1); }}>Limpar filtros</button>
         </div>
