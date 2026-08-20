@@ -47,7 +47,14 @@ type TeamConfig = {
   capacity: number;
 };
 
-type SuggestionRules = { complaints: boolean; recent: boolean };
+type CustomCriterion = {
+  id: string;
+  field: "neighborhood" | "region" | "service";
+  value: string;
+  points: number;
+};
+
+type SuggestionRules = { complaints: boolean; recent: boolean; customCriteria: CustomCriterion[] };
 
 const initialTeams: TeamConfig[] = [
   { id: "team-1", name: "Construpav 01", color: "#7457d9", active: true, services: ["Passeio", "Muro"], capacity: 6 },
@@ -55,7 +62,7 @@ const initialTeams: TeamConfig[] = [
   { id: "team-3", name: "Construpav 03", color: "#2f99ac", active: true, services: ["Passeio", "Muro", "Caixa Padrão"], capacity: 5 },
 ];
 
-const initialRules: SuggestionRules = { complaints: true, recent: true };
+const initialRules: SuggestionRules = { complaints: true, recent: true, customCriteria: [] };
 const referenceNow = new Date("2026-08-18T12:00:00-03:00").getTime();
 
 const orderSeeds: Omit<WorkOrder, "sourceHash">[] = [
@@ -123,6 +130,16 @@ function scoreOrder(order: WorkOrder, rules: SuggestionRules) {
     score += recentScore;
     if (ageDays <= 3) reasons.push("solicitação recente");
   }
+  rules.customCriteria.forEach((criterion) => {
+    const value = criterion.value.trim();
+    if (!value) return;
+    const source = criterion.field === "neighborhood" ? order.neighborhood : criterion.field === "region" ? order.region : `${order.serviceCode} ${order.service}`;
+    if (!normalize(source).includes(normalize(value))) return;
+    const points = Math.max(0, Math.min(100, Number(criterion.points) || 0));
+    score += points;
+    const fieldLabel = criterion.field === "neighborhood" ? "bairro" : criterion.field === "region" ? "região" : "serviço";
+    reasons.push(`${fieldLabel} prioritário: ${value}`);
+  });
   return { score, reasons: reasons.length ? reasons : ["sem prioridade automática"] };
 }
 
@@ -184,7 +201,10 @@ export default function Home() {
       const localTeams = window.localStorage.getItem("rotaos-team-settings-v3");
       const localRules = window.localStorage.getItem("rotaos-suggestion-rules-v2");
       if (localTeams) try { setTeams(JSON.parse(localTeams)); } catch { /* configuração inválida */ }
-      if (localRules) try { setRules(JSON.parse(localRules)); } catch { /* configuração inválida */ }
+      if (localRules) try {
+        const savedRules = JSON.parse(localRules) as Partial<SuggestionRules>;
+        setRules({ ...initialRules, ...savedRules, customCriteria: Array.isArray(savedRules.customCriteria) ? savedRules.customCriteria : [] });
+      } catch { /* configuração inválida */ }
     }, 0);
     if (cloudReady) {
       void currentUserEmail().then(async (email) => {
@@ -369,6 +389,13 @@ export default function Home() {
     setSuggested(new Set()); setSuggestionFilter("Todos"); setModal(null); setToast("Critérios atualizados. Gere uma nova sugestão.");
   }
 
+  function addCustomCriterion() {
+    setDraftRules((current) => ({
+      ...current,
+      customCriteria: [...current.customCriteria, { id: `criterion-${Date.now()}`, field: "neighborhood", value: "", points: 20 }],
+    }));
+  }
+
   return <main className={sidebarCollapsed ? "app-shell sidebar-is-collapsed" : "app-shell"}>
     <aside className="sidebar">
       <button className="brand" onClick={() => setSidebarCollapsed((current) => !current)} aria-label={sidebarCollapsed ? "Mostrar menu lateral" : "Ocultar menu lateral"} title={sidebarCollapsed ? "Mostrar menu lateral" : "Ocultar menu lateral"}><span className="brand-mark">R</span><span>RotaOS</span></button>
@@ -417,7 +444,7 @@ export default function Home() {
 
     {modal === "teams" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><section className="modal team-settings-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)}>×</button><p className="modal-kicker">EQUIPES E CAPACIDADE</p><h2>Quem pode executar cada serviço?</h2><div className="team-settings-list">{draftTeams.map((team) => <article key={team.id}><div className="team-settings-main"><input type="color" value={team.color} onChange={(event) => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, color: event.target.value } : item))} /><label><span>Nome da equipe</span><input value={team.name} onChange={(event) => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, name: event.target.value } : item))} /></label><label className="capacity-field"><span>Máximo de OS</span><input type="number" min="1" max="50" value={team.capacity} onChange={(event) => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, capacity: Math.max(1, Number(event.target.value)) } : item))} /></label><label className="team-active"><input type="checkbox" checked={team.active} onChange={(event) => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, active: event.target.checked } : item))} /><span>Ativa</span></label></div><div className="team-service-settings"><span>Tipos de trabalho</span>{(["Passeio", "Muro", "Caixa Padrão"] as Service[]).map((service) => <label key={service}><input type="checkbox" checked={team.services.includes(service)} onChange={() => setDraftTeams((current) => current.map((item) => item.id === team.id ? { ...item, services: item.services.includes(service) ? item.services.filter((value) => value !== service) : [...item.services, service] } : item))} /><span>{service}</span></label>)}</div></article>)}</div><button className="add-team-button" onClick={() => setDraftTeams((current) => [...current, { id: `team-${Date.now()}`, name: `Equipe ${current.length + 1}`, color: "#35a56f", active: true, services: ["Passeio"], capacity: 5 }])}>＋ Adicionar equipe</button><div className="modal-actions"><button className="secondary" onClick={() => setModal(null)}>Cancelar</button><button className="primary" onClick={persistTeams}>Salvar equipes</button></div></section></div>}
 
-    {modal === "rules" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><section className="modal rules-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)}>×</button><p className="modal-kicker">CRITÉRIOS DA SUGESTÃO</p><h2>O que torna um chamado interessante?</h2><p>A sugestão analisa toda a base filtrada e não altera a seleção manual.</p><div className="rules-list"><label><input type="checkbox" checked={draftRules.recent} onChange={(event) => setDraftRules((current) => ({ ...current, recent: event.target.checked }))} /><div><strong>Chamados mais recentes</strong><span>Quanto mais recente a solicitação, maior a pontuação.</span></div></label><label><input type="checkbox" checked={draftRules.complaints} onChange={(event) => setDraftRules((current) => ({ ...current, complaints: event.target.checked }))} /><div><strong>Quantidade de reclamações recentes</strong><span>Cada reclamação aumenta a prioridade, limitada para evitar distorções.</span></div></label></div><div className="criteria-note"><strong>Depois da escolha</strong><span>Compatibilidade da equipe, capacidade e mesmo endereço ajudam a formar as rotas, mas não decidem quais chamados são melhores.</span></div><div className="modal-actions"><button className="secondary" onClick={() => setModal(null)}>Cancelar</button><button className="primary" onClick={persistRules}>Salvar critérios</button></div></section></div>}
+    {modal === "rules" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><section className="modal rules-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)}>×</button><p className="modal-kicker">CRITÉRIOS DA SUGESTÃO</p><h2>O que torna um chamado interessante?</h2><p>A sugestão analisa toda a base filtrada e não altera a seleção manual.</p><div className="rules-list"><label><input type="checkbox" checked={draftRules.recent} onChange={(event) => setDraftRules((current) => ({ ...current, recent: event.target.checked }))} /><div><strong>Chamados mais recentes</strong><span>Quanto mais recente a solicitação, maior a pontuação.</span></div></label><label><input type="checkbox" checked={draftRules.complaints} onChange={(event) => setDraftRules((current) => ({ ...current, complaints: event.target.checked }))} /><div><strong>Quantidade de reclamações recentes</strong><span>Cada reclamação aumenta a prioridade, limitada para evitar distorções.</span></div></label></div><div className="custom-criteria"><div className="custom-criteria-heading"><div><strong>Prioridades adicionais</strong><span>Adicione bairros, regiões ou serviços que mereçam pontos extras.</span></div><button type="button" onClick={addCustomCriterion}>＋ Adicionar critério</button></div>{draftRules.customCriteria.map((criterion) => <div className="custom-criterion" key={criterion.id}><select aria-label="Campo do critério" value={criterion.field} onChange={(event) => setDraftRules((current) => ({ ...current, customCriteria: current.customCriteria.map((item) => item.id === criterion.id ? { ...item, field: event.target.value as CustomCriterion["field"] } : item) }))}><option value="neighborhood">Bairro</option><option value="region">Região</option><option value="service">Serviço</option></select><input aria-label="Valor do critério" placeholder={criterion.field === "neighborhood" ? "Ex.: Linhares" : criterion.field === "region" ? "Ex.: Regional Leste" : "Ex.: S201"} value={criterion.value} onChange={(event) => setDraftRules((current) => ({ ...current, customCriteria: current.customCriteria.map((item) => item.id === criterion.id ? { ...item, value: event.target.value } : item) }))} /><label><span>Pontos</span><input aria-label="Pontos do critério" type="number" min="0" max="100" value={criterion.points} onChange={(event) => setDraftRules((current) => ({ ...current, customCriteria: current.customCriteria.map((item) => item.id === criterion.id ? { ...item, points: Math.max(0, Math.min(100, Number(event.target.value))) } : item) }))} /></label><button type="button" className="remove-criterion" aria-label="Remover critério" onClick={() => setDraftRules((current) => ({ ...current, customCriteria: current.customCriteria.filter((item) => item.id !== criterion.id) }))}>×</button></div>)}</div><div className="criteria-note"><strong>Depois da escolha</strong><span>Compatibilidade da equipe, capacidade e mesmo endereço ajudam a formar as rotas, mas não decidem quais chamados são melhores.</span></div><div className="modal-actions"><button className="secondary" onClick={() => setModal(null)}>Cancelar</button><button className="primary" onClick={persistRules}>Salvar critérios</button></div></section></div>}
 
     {modal === "suggestion" && explainedOrder && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><section className="modal suggestion-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)}>×</button><p className="modal-kicker">SUGESTÃO #{suggestionRank[explainedOrder.id]}</p><h2>{explainedOrder.id}</h2><p>{explainedOrder.address} · {explainedOrder.neighborhood}</p><div className="suggestion-explanation">{suggestionReasons[explainedOrder.id]?.map((reason) => <span key={reason}>✓ {reason}</span>)}</div><div className="score-line"><span>Pontuação da sugestão</span><strong>{scores[explainedOrder.id]?.score ?? 0}</strong></div><p className="explanation-footnote">Essa pontuação apenas organiza as sugestões. A decisão final continua sendo da Camilla.</p></section></div>}
 

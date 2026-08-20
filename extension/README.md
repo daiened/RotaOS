@@ -5,10 +5,10 @@ Extensão local e somente leitura que coleta apenas S025, S200 e S201, elimina d
 ## Sincronização
 
 - **Enviar selecionadas:** envia apenas as caixas marcadas e atendidas pela Camilla na página atual.
-- **Todas as páginas do filtro:** percorre a paginação disponível, elimina números repetidos e abre a base acumulada no RotaOS.
+- **Todas as páginas de Solicitadas:** use na aba **Solicitadas** do Procesa. A extensão percorre a paginação disponível, elimina números repetidos e abre a base acumulada no RotaOS. Somente S025, S200 e S201 são mantidas.
 - **Abrir base acumulada:** retoma uma coleta preservada caso a paginação pare ou a página seja recarregada.
 
-O filtro de período continua sendo escolhido no Procesa durante a fase de teste. No desenho definitivo, o período do grid consulta o banco e a extensão fica responsável por manter a base atualizada.
+O banco do RotaOS mantém apenas as OS ativas da aba **Solicitadas**, dentro dos serviços S025, S200 e S201. Não use a sincronização nas abas Finalizadas ou Canceladas. O filtro de período continua sendo escolhido no Procesa durante a fase de teste. No desenho definitivo, o período do grid consulta o banco e a extensão fica responsável por manter a base atualizada.
 
 ## Instalação de teste
 

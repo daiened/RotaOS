@@ -28,7 +28,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .sidebar-is-collapsed .brand { padding-inline: 8px; }
 .sidebar-is-collapsed .brand > span:last-child, .sidebar-is-collapsed .current-module > div, .sidebar-is-collapsed .sidebar-note, .sidebar-is-collapsed .cloud-status { display: none; }
 .sidebar-is-collapsed .current-module { justify-content: center; padding-inline: 8px; }
-.sidebar-is-collapsed .workspace { width: calc(100% - 70px); margin-left: 70px; }
+.sidebar-is-collapsed .workspace { margin-left: 70px; }
 .brand-mark { width: 35px; height: 35px; display: grid; place-items: center; color: #fff; border-radius: 11px; background: linear-gradient(145deg, #8a71eb, #5d42c2); box-shadow: 0 8px 18px #6e55d73d; }
 .module-switcher { display: grid; gap: 8px; }
 .current-module { width: 100%; padding: 13px; display: flex; align-items: center; gap: 11px; color: #696e7d; background: transparent; border: 1px solid transparent; border-radius: 10px; text-align: left; }
@@ -41,7 +41,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .sidebar-note > span { color: #6c53c9; font-size: 10px; font-weight: 850; letter-spacing: 1px; }
 .sidebar-note strong { display: block; margin-top: 8px; font-size: 14px; }.sidebar-note p { margin: 6px 0 0; color: #85899a; font-size: 12px; line-height: 1.5; }
 
-.workspace { width: calc(100% - 240px); max-width: 1500px; margin-left: 240px; padding: 34px 38px 48px; }
+.workspace { min-width: 0; flex: 1; width: auto; max-width: none; margin-left: 240px; padding: 34px 38px 48px; }
 .topbar { margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .eyebrow, .section-kicker, .modal-kicker { margin: 0 0 7px; color: #6b55c7; font-size: 11px; font-weight: 850; letter-spacing: 1.2px; }
 .topbar h1 { margin: 0; font-size: 32px; letter-spacing: -.8px; }.subtitle { margin: 7px 0 0; color: var(--muted); font-size: 15px; }
@@ -152,6 +152,9 @@ footer { padding: 22px 3px 0; display: flex; justify-content: space-between; gap
 .rules-list strong, .rules-list span { display: block; }
 .rules-list strong { font-size: 12px; }
 .rules-list span { margin-top: 4px; color: #777c8b; font-size: 10px; line-height: 1.4; }
+.custom-criteria { margin: 16px 0; padding: 12px; display: grid; gap: 9px; border: 1px solid var(--line); border-radius: 10px; background: #fbfbfd; }
+.custom-criteria-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.custom-criteria-heading strong, .custom-criteria-heading span { display: block; }.custom-criteria-heading strong { font-size: 12px; }.custom-criteria-heading span { margin-top: 4px; color: #777c8b; font-size: 10px; }.custom-criteria-heading button { padding: 7px 9px; border: 1px dashed #bdb2ee; color: #6049c1; background: #f8f6ff; border-radius: 7px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.custom-criterion { display: grid; grid-template-columns: 110px minmax(130px, 1fr) 74px 32px; gap: 7px; align-items: end; }.custom-criterion select, .custom-criterion > input, .custom-criterion label input { width: 100%; height: 38px; padding: 0 9px; border: 1px solid #dedfe5; border-radius: 7px; color: #505665; background: #fff; font-size: 11px; }.custom-criterion label span { display: block; margin-bottom: 4px; color: #777c8b; font-size: 9px; font-weight: 800; }.remove-criterion { width: 32px; height: 38px; border: 1px solid #f0cccc; color: #ad4a4a; background: #fff5f5; border-radius: 7px; font-size: 18px; }
 .login-modal { width: min(420px, 100%); }
 .login-modal > label { display: block; margin-bottom: 11px; }
 .login-modal > label span { display: block; margin-bottom: 5px; color: #6f7483; font-size: 11px; font-weight: 750; }
@@ -182,7 +185,7 @@ footer { padding: 22px 3px 0; display: flex; justify-content: space-between; gap
   .header-actions { flex-wrap: wrap; }
   .dev-banner { align-items: flex-start; flex-direction: column; }
   .prototype-selection-bar button { margin-left: 0; }
-  .capacity-field { grid-column: 1 / -1; }
+  .capacity-field { grid-column: 1 / -1; }.custom-criteria-heading { align-items: flex-start; flex-direction: column; }.custom-criterion { grid-template-columns: 1fr 1fr 70px 32px; }
   .architecture-banner { grid-template-columns: 1fr; }.database-filters { grid-template-columns: 1fr; }.database-filters > input { grid-column: auto; }.grid-heading, .grid-pagination { align-items: flex-start; flex-direction: column; }.grid-pagination div { width: 100%; justify-content: space-between; }
 }
 

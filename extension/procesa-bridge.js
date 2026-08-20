@@ -261,9 +261,9 @@
   panel.innerHTML = `
     <header><span>R</span><div><strong>Sincronizar com RotaOS</strong><small id="rotaos-bridge-counter">Lendo OS…</small></div><button id="rotaos-bridge-collapse" aria-label="Recolher">−</button></header>
     <div class="rotaos-bridge-body">
-      <p>Somente S025, S200 e S201. Nada será distribuído no Procesa.</p>
+      <p>Use na aba Solicitadas. Somente S025, S200 e S201; nada será distribuído no Procesa.</p>
       <button data-action id="rotaos-send-selected">Enviar selecionadas</button>
-      <button data-action id="rotaos-sync-pages" class="secondary">Todas as páginas do filtro</button>
+      <button data-action id="rotaos-sync-pages" class="secondary">Todas as páginas de Solicitadas</button>
       <button data-action id="rotaos-open-session" class="secondary">Abrir base acumulada</button>
       <button data-action id="rotaos-clear-session" class="text">Limpar acumuladas</button>
       <small id="rotaos-bridge-progress"></small>
