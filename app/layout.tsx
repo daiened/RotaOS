@@ -3,11 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 const assetBase = process.env.GITHUB_ACTIONS ? "/RotaOS" : "";
-const siteBase = process.env.GITHUB_ACTIONS
-  ? "https://daiened.github.io/RotaOS/"
-  : process.env.NEXT_PUBLIC_ROTAOS_ENV === "development"
-    ? "https://rotaos-dev.daieneduarte.chatgpt.site/"
-    : "https://rotaos-planejamento.daieneduarte.chatgpt.site/";
+const siteBase = "https://daiened.github.io/RotaOS/";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

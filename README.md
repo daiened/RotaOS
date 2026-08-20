@@ -25,11 +25,11 @@ Planejamento e revisão de rotas de Ordens de Serviço, com sincronização incr
 
 A extensão é inicialmente somente leitura: ela não guarda login/senha e não distribui OS no Procesa.
 
-O esquema para Supabase está em `supabase/schema.sql`. Enquanto as credenciais de DEV não forem configuradas, a tela informa claramente que está em modo de demonstração e conserva a base apenas naquele navegador.
+O endereço oficial e único é <https://daiened.github.io/RotaOS/>. O esquema para Supabase está em `supabase/schema.sql`. Enquanto as credenciais do banco não forem configuradas, a tela informa claramente que está em modo de demonstração e conserva a base apenas naquele navegador.
 
 A arquitetura aprovada e as regras de sincronização estão descritas em `docs/architecture.md`.
 
-Produção, custos, ganhos, mapa geográfico real e envio de volta ao Procesa continuam fora da interface enquanto o planejamento é validado.
+Custos, ganhos, mapa geográfico real e envio de volta ao Procesa continuam fora da interface enquanto o planejamento é validado.
 
 ## Desenvolvimento
 

@@ -4,7 +4,7 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("gera o grid DEV focado nos serviços da Camilla", async () => {
+test("gera o grid oficial focado nos serviços da Camilla", async () => {
   const html = await readFile(new URL("out/index.html", root), "utf8");
   const pageSource = await readFile(new URL("app/page.tsx", root), "utf8");
   assert.match(html, /<html lang="pt-BR"/);

@@ -32,7 +32,7 @@ Procesa autenticado
 
 ## Consultas do grid
 
-Filtros, ordenação e paginação devem ser executados no banco quando a conexão online estiver ativa. A interface DEV atual reproduz esse comportamento em memória para validar a experiência antes da integração definitiva.
+Filtros, ordenação e paginação devem ser executados no banco quando a conexão online estiver ativa. Sem credenciais configuradas, a interface reproduz esse comportamento em memória para permitir a demonstração local.
 
 ## Futuro: contas e central de manutenção
 

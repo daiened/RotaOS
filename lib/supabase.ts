@@ -54,7 +54,7 @@ export function getSupabase() {
 
 export async function signIn(email: string, password: string) {
   const supabase = getSupabase();
-  if (!supabase) throw new Error("O banco DEV ainda não foi conectado.");
+  if (!supabase) throw new Error("O banco ainda não foi conectado.");
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
 }
