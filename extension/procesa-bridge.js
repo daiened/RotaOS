@@ -249,7 +249,7 @@
     if (!next) {
       await storageSet({ [AUTO_KEY]: { active: false, page } });
       setBusy(false);
-      showMessage(`Coleta encerrada na página ${page}: ${session.orders.length} OS acumuladas.`);
+      showMessage(`Coleta encerrada na página ${page}: ${session.orders.length} OS acumuladas.`, false, true);
       await openSessionInRotaOS();
       return;
     }
@@ -259,7 +259,7 @@
     if (!changed) {
       await storageSet({ [AUTO_KEY]: { active: false, page } });
       setBusy(false);
-      showMessage("A próxima página não respondeu. A base coletada foi preservada.", true);
+      showMessage("A próxima página não respondeu. A base coletada foi preservada.", true, true);
       return;
     }
     await continueAutoSync();
@@ -290,12 +290,12 @@
     if (counter) counter.textContent = `${supported} atendidas de ${visible} visíveis · ${selected} marcadas · ${accumulated || 0} acumuladas`;
   }
 
-  function showMessage(text, error = false) {
+  function showMessage(text, error = false, persistent = false) {
     const message = document.getElementById("rotaos-bridge-message");
     if (!message) return;
     message.textContent = text;
     message.classList.toggle("error", error);
-    window.setTimeout(() => { if (message.textContent === text) message.textContent = ""; }, 6000);
+    if (!persistent) window.setTimeout(() => { if (message.textContent === text) message.textContent = ""; }, 6000);
   }
 
   const panel = document.createElement("section");
