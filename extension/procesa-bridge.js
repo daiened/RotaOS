@@ -4,6 +4,8 @@
   const ROTAOS_URL = "https://daiened.github.io/RotaOS/?source=extension";
   const SESSION_KEY = "rotaosSyncSession";
   const AUTO_KEY = "rotaosAutoSync";
+  const DETAIL_CACHE_KEY = "rotaosDetailCacheV1";
+  const DETAIL_CACHE_TTL_MS = 2 * 60 * 60 * 1000;
 
   function storageGet(keys) {
     return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
@@ -92,9 +94,20 @@
     return { detail: latest?.content || legacy.detail, complaintCount: entries.length, latestComplaintAt: latest?.date || legacy.latestComplaintAt };
   }
 
+  function detailCacheId(row) {
+    return [row.internalId, row.occurrence, row.address, row.requestedAt, row.requestedService, row.team].join("|");
+  }
+
   async function enrichDetails(rows) {
-    const ids = rows.map((row) => row.internalId).filter((id) => /^\d+$/.test(id));
-    if (!ids.length) return rows;
+    const now = Date.now();
+    const { [DETAIL_CACHE_KEY]: storedCache } = await storageGet([DETAIL_CACHE_KEY]);
+    const cache = storedCache && typeof storedCache === "object" ? storedCache : {};
+    const rowsWithoutFreshCache = rows.filter((row) => {
+      const entry = cache[detailCacheId(row)];
+      return !entry || now - Number(entry.cachedAt || 0) >= DETAIL_CACHE_TTL_MS;
+    });
+    const ids = rowsWithoutFreshCache.map((row) => row.internalId).filter((id) => /^\d+$/.test(id));
+    if (!ids.length) return rows.map((row) => ({ ...row, ...cache[detailCacheId(row)] }));
     try {
       const response = await fetch(`/operacoes/impressao?id=${ids.join(",")}`, { credentials: "include" });
       if (!response.ok) return rows;
@@ -105,6 +118,14 @@
         const occurrence = section.match(/^N°:\s*([^\n]+)/m)?.[1]?.trim() || "";
         return [occurrence, metadataFromSectionV2(section, occurrence)];
       }));
+      rows.forEach((row) => {
+        const detail = details.get(row.occurrence);
+        if (detail) cache[detailCacheId(row)] = { ...detail, cachedAt: now };
+      });
+      const retainedCache = Object.entries(cache)
+        .sort(([, a], [, b]) => Number(b.cachedAt || 0) - Number(a.cachedAt || 0))
+        .slice(0, 5000);
+      await storageSet({ [DETAIL_CACHE_KEY]: Object.fromEntries(retainedCache) });
       return rows.map((row) => ({
         ...row,
         detail: details.get(row.occurrence)?.detail || "Detalhe ainda não identificado",
@@ -216,11 +237,21 @@
     return next;
   }
 
-  function waitForPageChange(previousSignature) {
+  function currentPageMarker() {
+    return document.getElementById("hddPaginaAtual")?.value || "";
+  }
+
+  function waitForPageChange(previousSignature, previousPage) {
     return new Promise((resolve) => {
       const startedAt = Date.now();
       const timer = window.setInterval(() => {
-        const changed = rowSignature() && rowSignature() !== previousSignature;
+        // O Procesa atualiza a grade por postback. Em alguns filtros as OS
+        // podem se repetir entre páginas; o campo oculto é a confirmação
+        // oficial de que a paginação mudou.
+        const currentPage = currentPageMarker();
+        const changedByPage = Boolean(currentPage && previousPage && currentPage !== previousPage);
+        const changedByRows = Boolean(rowSignature() && rowSignature() !== previousSignature);
+        const changed = changedByPage || changedByRows;
         if (changed || Date.now() - startedAt > 12000) {
           window.clearInterval(timer);
           resolve(Boolean(changed));
@@ -246,6 +277,7 @@
     }
     setBusy(true, `Coletando página ${page}…`);
     const signature = rowSignature();
+    const pageMarker = currentPageMarker();
     const session = await addRowsToSession(rows);
     showMessage(`Página ${page} coletada · ${session.orders.length} OS únicas.`);
     const next = await getNextPageButton();
@@ -258,7 +290,7 @@
     }
     await storageSet({ [AUTO_KEY]: { active: true, page: page + 1 } });
     next.click();
-    const changed = await waitForPageChange(signature);
+    const changed = await waitForPageChange(signature, pageMarker);
     if (!changed) {
       await storageSet({ [AUTO_KEY]: { active: false, page } });
       setBusy(false);

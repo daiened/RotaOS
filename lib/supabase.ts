@@ -94,22 +94,30 @@ export async function currentUserEmail() {
 export async function loadOrders(): Promise<StoredOrder[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
-  const primary = await supabase
-    .from("service_orders")
-    .select("external_id,internal_id,address,neighborhood,region,source_team,requested_at,service,service_code,detail,sync_state,complaint_count,source_hash,last_seen_at,changed_at,latest_complaint_at")
-    .order("requested_at", { ascending: false });
-  let data = primary.data as unknown as ServiceOrderRow[] | null;
-  let error = primary.error;
-  if (error && /source_team/i.test(error.message)) {
-    const legacy = await supabase
-      .from("service_orders")
-      .select("external_id,internal_id,address,neighborhood,region,requested_at,service,service_code,detail,sync_state,complaint_count,source_hash,last_seen_at,changed_at,latest_complaint_at")
-      .order("requested_at", { ascending: false });
-    data = legacy.data as unknown as ServiceOrderRow[] | null;
-    error = legacy.error;
+  const pageSize = 1000;
+  const loadAll = async (columns: string) => {
+    const records: ServiceOrderRow[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("service_orders")
+        .select(columns)
+        .order("requested_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      const batch = (data ?? []) as unknown as ServiceOrderRow[];
+      records.push(...batch);
+      if (batch.length < pageSize) return records;
+    }
+  };
+
+  let data: ServiceOrderRow[];
+  try {
+    data = await loadAll("external_id,internal_id,address,neighborhood,region,source_team,requested_at,service,service_code,detail,sync_state,complaint_count,source_hash,last_seen_at,changed_at,latest_complaint_at");
+  } catch (error) {
+    if (!(error instanceof Error) || !/source_team/i.test(error.message)) throw error;
+    data = await loadAll("external_id,internal_id,address,neighborhood,region,requested_at,service,service_code,detail,sync_state,complaint_count,source_hash,last_seen_at,changed_at,latest_complaint_at");
   }
-  if (error) throw error;
-  return (data ?? []).map((row) => ({
+  return data.map((row) => ({
     internalId: row.internal_id ?? "",
     id: row.external_id,
     address: row.address,
@@ -156,12 +164,21 @@ export async function saveOrders(orders: StoredOrder[], summary: Record<string, 
     latest_complaint_at: order.latestComplaintAt ? toIsoDateTime(order.latestComplaintAt) : null,
   }));
 
-  let { error } = await supabase
-    .from("service_orders")
-    .upsert(rows, { onConflict: "owner_id,external_id" });
+  const saveInBatches = async (payload: unknown[]) => {
+    const batchSize = 250;
+    for (let from = 0; from < payload.length; from += batchSize) {
+      const { error } = await supabase
+        .from("service_orders")
+        .upsert(payload.slice(from, from + batchSize) as never, { onConflict: "owner_id,external_id" });
+      if (error) return error;
+    }
+    return null;
+  };
+
+  let error = await saveInBatches(rows);
   if (error && /source_team/i.test(error.message)) {
     const legacyRows = rows.map(({ source_team, ...order }) => { void source_team; return order; });
-    ({ error } = await supabase.from("service_orders").upsert(legacyRows, { onConflict: "owner_id,external_id" }));
+    error = await saveInBatches(legacyRows);
   }
   if (error) throw error;
 
