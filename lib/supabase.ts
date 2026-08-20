@@ -6,6 +6,7 @@ export type StoredOrder = {
   address: string;
   neighborhood: string;
   region: string;
+  processaTeam?: string;
   requestedAt: string;
   service: string;
   serviceCode?: string;
@@ -25,6 +26,25 @@ export type StoredTeam = {
   active: boolean;
   services: string[];
   capacity: number;
+};
+
+type ServiceOrderRow = {
+  internal_id?: string | null;
+  external_id: string;
+  address: string;
+  neighborhood: string;
+  region: string;
+  source_team?: string | null;
+  requested_at?: string | null;
+  service: string;
+  service_code?: string | null;
+  detail: string;
+  sync_state: string;
+  complaint_count?: number | null;
+  source_hash: string;
+  last_seen_at: string;
+  changed_at?: string | null;
+  latest_complaint_at?: string | null;
 };
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -74,10 +94,20 @@ export async function currentUserEmail() {
 export async function loadOrders(): Promise<StoredOrder[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
-  const { data, error } = await supabase
+  const primary = await supabase
     .from("service_orders")
-    .select("external_id,internal_id,address,neighborhood,region,requested_at,service,service_code,detail,sync_state,complaint_count,source_hash,last_seen_at,changed_at,latest_complaint_at")
+    .select("external_id,internal_id,address,neighborhood,region,source_team,requested_at,service,service_code,detail,sync_state,complaint_count,source_hash,last_seen_at,changed_at,latest_complaint_at")
     .order("requested_at", { ascending: false });
+  let data = primary.data as unknown as ServiceOrderRow[] | null;
+  let error = primary.error;
+  if (error && /source_team/i.test(error.message)) {
+    const legacy = await supabase
+      .from("service_orders")
+      .select("external_id,internal_id,address,neighborhood,region,requested_at,service,service_code,detail,sync_state,complaint_count,source_hash,last_seen_at,changed_at,latest_complaint_at")
+      .order("requested_at", { ascending: false });
+    data = legacy.data as unknown as ServiceOrderRow[] | null;
+    error = legacy.error;
+  }
   if (error) throw error;
   return (data ?? []).map((row) => ({
     internalId: row.internal_id ?? "",
@@ -85,6 +115,7 @@ export async function loadOrders(): Promise<StoredOrder[]> {
     address: row.address,
     neighborhood: row.neighborhood,
     region: row.region,
+    processaTeam: row.source_team ?? undefined,
     requestedAt: row.requested_at ?? "",
     service: row.service,
     serviceCode: row.service_code ?? undefined,
@@ -112,6 +143,7 @@ export async function saveOrders(orders: StoredOrder[], summary: Record<string, 
     address: order.address,
     neighborhood: order.neighborhood,
     region: order.region,
+    source_team: order.processaTeam ?? null,
     requested_at: toIsoDateTime(order.requestedAt),
     service: order.service,
     service_code: order.serviceCode ?? null,
@@ -124,9 +156,13 @@ export async function saveOrders(orders: StoredOrder[], summary: Record<string, 
     latest_complaint_at: order.latestComplaintAt ? toIsoDateTime(order.latestComplaintAt) : null,
   }));
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from("service_orders")
     .upsert(rows, { onConflict: "owner_id,external_id" });
+  if (error && /source_team/i.test(error.message)) {
+    const legacyRows = rows.map(({ source_team, ...order }) => { void source_team; return order; });
+    ({ error } = await supabase.from("service_orders").upsert(legacyRows, { onConflict: "owner_id,external_id" }));
+  }
   if (error) throw error;
 
   const { error: syncError } = await supabase.from("sync_runs").insert({

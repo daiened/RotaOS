@@ -26,6 +26,7 @@ type WorkOrder = {
   address: string;
   neighborhood: string;
   region: string;
+  processaTeam?: string;
   requestedAt: string;
   service: Service;
   serviceCode: ServiceCode;
@@ -63,7 +64,7 @@ const initialTeams: TeamConfig[] = [
 ];
 
 const initialRules: SuggestionRules = { complaints: true, recent: true, customCriteria: [] };
-const referenceNow = new Date("2026-08-18T12:00:00-03:00").getTime();
+const referenceNow = Date.now();
 
 const orderSeeds: Omit<WorkOrder, "sourceHash">[] = [
   { internalId: "3032011", id: "37007/2026/2", address: "Av. Dr. Paulo Japiassu Coelho, 10", neighborhood: "Cascatinha", region: "Sul", requestedAt: "17/08/2026 17:21:27", service: "Passeio", serviceCode: "S201 X", detail: "Recompor passeio", syncState: "new", complaintCount: 1, latestComplaintAt: "17/08/2026", lastSeenAt: "2026-08-18T01:00:00Z" },
@@ -88,8 +89,8 @@ function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
 }
 
-function fingerprint(order: Pick<WorkOrder, "address" | "neighborhood" | "region" | "requestedAt" | "serviceCode" | "detail" | "complaintCount">) {
-  return normalize([order.address, order.neighborhood, order.region, order.requestedAt, order.serviceCode, order.detail, order.complaintCount].join("|"));
+function fingerprint(order: Pick<WorkOrder, "address" | "neighborhood" | "region" | "processaTeam" | "requestedAt" | "serviceCode" | "detail" | "complaintCount">) {
+  return normalize([order.address, order.neighborhood, order.region, order.processaTeam, order.requestedAt, order.serviceCode, order.detail, order.complaintCount].join("|"));
 }
 
 const initialOrders: WorkOrder[] = orderSeeds.map((order) => ({ ...order, sourceHash: fingerprint(order) }));
@@ -120,7 +121,9 @@ function formatRequestedAt(value: string) {
 function scoreOrder(order: WorkOrder, rules: SuggestionRules) {
   let score = 0;
   const reasons: string[] = [];
-  if (rules.complaints && order.complaintCount > 0) {
+  const latestComplaint = order.latestComplaintAt ? parseRequestedAt(order.latestComplaintAt) : 0;
+  const complaintAgeDays = latestComplaint ? Math.max(0, (referenceNow - latestComplaint) / 86_400_000) : Number.POSITIVE_INFINITY;
+  if (rules.complaints && order.complaintCount > 0 && complaintAgeDays <= 30) {
     score += Math.min(order.complaintCount, 5) * 18;
     reasons.push(`${order.complaintCount} reclamação${order.complaintCount === 1 ? "" : "ões"}`);
   }
@@ -194,6 +197,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
+  const [gridFocus, setGridFocus] = useState(true);
 
   const cloudReady = isSupabaseConfigured();
 
@@ -247,6 +251,7 @@ export default function Home() {
           address: String(raw.address ?? "Endereço não informado"),
           neighborhood: String(raw.neighborhood ?? "Bairro não informado"),
           region: String(raw.region ?? "Região não informada"),
+          processaTeam: String(raw.team ?? previous?.processaTeam ?? "").trim() || undefined,
           requestedAt: String(raw.requestedAt ?? ""),
           ...info,
           detail: String(raw.detail ?? "Detalhe ainda não identificado"),
@@ -416,7 +421,7 @@ export default function Home() {
       <div className={`cloud-status ${userEmail ? "connected" : ""}`}><i /><div><strong>{userEmail ? "Banco conectado" : cloudReady ? "Banco pronto" : "Banco ainda não conectado"}</strong><small>{userEmail ?? (cloudReady ? "Clique em Entrar no topo" : "Modo demonstrativo local")}</small></div></div>
     </aside>
 
-    <section className="workspace prototype-workspace">
+    <section className={`workspace prototype-workspace ${gridFocus ? "grid-focus" : ""}`}>
       <header className="topbar prototype-topbar"><div><p className="eyebrow">PLANEJAMENTO DE ROTAS</p><h1>Chamados da Camilla</h1><p className="subtitle">S025 Caixa Padrão · S200 X Muro · S201 X Passeio</p></div><div className="header-actions">{cloudReady && <button className="secondary" onClick={() => userEmail ? void signOut().then(() => setUserEmail(null)) : setModal("login")}>{userEmail ? "Sair" : "Entrar"}</button>}<button className="secondary" onClick={() => setModal("import")}>Sincronizar Procesa</button><button className="primary smart-button" onClick={createSuggestion}>✦ Sugerir melhores chamados</button><button className="icon-action" onClick={() => { setDraftRules(rules); setModal("rules"); }} aria-label="Configurar critérios">⚙</button></div></header>
 
       <div className="architecture-banner"><strong>Fluxo definitivo</strong><span>Extensão → banco protegido → grid. O grid consultará sempre a base completa, não somente a última coleta.</span><em>{cloudReady && userEmail ? "Base online carregada" : cloudReady ? "Clique em Entrar, no topo da página" : "Conexão online pendente"}</em></div>
@@ -428,13 +433,14 @@ export default function Home() {
         <article><span className="prototype-metric-icon green">✓</span><div><p>Selecionadas</p><strong>{selected.size}</strong><small>escolha manual da Camilla</small></div></article>
       </section>
 
-      <div className={routeCalculated ? "prototype-notice calculated" : "prototype-notice"}><span>{routeCalculated ? "✓" : "○"}</span><div><strong>{selected.size} chamados escolhidos manualmente</strong><p>A sugestão do RotaOS não marca nem desmarca estes chamados.</p></div><button onClick={() => distribute(selected, "Seleção manual")}>Calcular rotas da seleção →</button></div>
+      <div className={routeCalculated ? "prototype-notice calculated" : "prototype-notice"}><span>{routeCalculated ? "✓" : "○"}</span><div><strong>{selected.size} chamados escolhidos manualmente</strong><p>A sugestão do RotaOS não marca nem desmarca estes chamados.</p></div><button className="overview-toggle" onClick={() => setGridFocus((current) => !current)}>{gridFocus ? "Mostrar visão completa" : "Focar base de chamados"}</button><button onClick={() => distribute(selected, "Seleção manual")}>Calcular rotas da seleção →</button></div>
 
       <section className="prototype-content-grid">
         <article className="prototype-card prototype-map-card"><div className="prototype-section-heading"><div><h2>{suggested.size ? "Rotas dos chamados sugeridos" : "Visão geral das rotas"}</h2><p>{mapOrders.length} OS em análise · cores por equipe</p></div><span className="prototype-map-state">MAPA ILUSTRATIVO</span></div><div className="prototype-map" aria-label="Mapa ilustrativo"><div className="prototype-river" /><span className="prototype-road road-1" /><span className="prototype-road road-2" /><span className="prototype-road road-3" /><span className="prototype-road road-4" /><span className="prototype-road road-5" /><span className="prototype-district d1">SANTA CRUZ</span><span className="prototype-district d2">BENFICA</span><span className="prototype-district d3">CENTRO</span><span className="prototype-district d4">TEIXEIRAS</span><span className="prototype-district d5">VITORINO BRAGA</span>{mapOrders.slice(0, pinPositions.length).map((order, index) => { const team = teams.find((item) => item.id === assignments[order.id]); const [left, top] = pinPositions[index]; return <span key={order.id} className="prototype-pin" style={{ left: `${left}%`, top: `${top}%`, background: team?.color ?? "#9a9eaa" }}><i>{index + 1}</i></span>; })}<div className="prototype-map-legend">{activeTeams.map((team) => <span key={team.id}><i style={{ background: team.color }} />{team.name}</span>)}</div></div><div className="map-warning"><strong>Distância ainda não calculada</strong><span>A escolha usa recência e reclamações; proximidade real entra na etapa do mapa geográfico.</span></div></article>
         <aside className="prototype-card prototype-team-panel"><div className="prototype-section-heading"><div><h2>Equipes</h2><p>Serviços e capacidade diária</p></div><button className="prototype-icon-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>⚙</button></div><div className="prototype-team-list">{activeTeams.map((team, index) => <button key={team.id} className={teamFilter === team.id ? "prototype-team-row active" : "prototype-team-row"} onClick={() => setTeamFilter(teamFilter === team.id ? "Todas" : team.id)}><span className="prototype-team-number" style={{ background: team.color }}>{index + 1}</span><div><strong>{team.name}</strong><span>{team.services.join(" + ")}</span></div><small>{teamCounts[team.id] ?? 0}/{team.capacity}</small><b>›</b></button>)}</div><div className="prototype-team-actions"><button className="prototype-outline-full" onClick={() => setTeamFilter("Todas")}>Todas as equipes</button><button className="prototype-settings-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>⚙</button></div></aside>
       </section>
 
+      {orders.some((order) => order.processaTeam) && <div className="processa-team-alert"><strong>Atenção para validação com a Camilla</strong><span>{orders.filter((order) => order.processaTeam).length} OS já exibem uma equipe no Procesa. Isso pode indicar uma distribuição anterior ainda não finalizada; o RotaOS não as atribui automaticamente.</span></div>}
       <section className="prototype-card prototype-orders-card">
         <div className="prototype-section-heading grid-heading"><div><h2>Base de chamados</h2><p>Ordene pelas setas do cabeçalho; a seleção permanece entre páginas e filtros.</p></div><div className="page-size"><span>Itens por página</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option>25</option><option>50</option><option>100</option></select></div></div>
         <div className="database-filters">

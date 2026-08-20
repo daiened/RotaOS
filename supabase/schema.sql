@@ -8,6 +8,7 @@ create table if not exists public.service_orders (
   address text not null default '',
   neighborhood text not null default '',
   region text not null default '',
+  source_team text,
   requested_at timestamptz,
   service text not null default 'Passeio',
   service_code text not null check (service_code in ('S025', 'S200 X', 'S201 X')),
