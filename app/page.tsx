@@ -103,6 +103,10 @@ function serviceInfo(raw: string): { service: Service; serviceCode: ServiceCode 
   return null;
 }
 
+function teamCanHandle(team: TeamConfig, service: Service) {
+  return team.services.some((configured) => configured === service || serviceInfo(configured)?.service === service);
+}
+
 function stateLabel(state: SyncState) {
   return ({ new: "Nova", updated: "Alterada", complaint: "Reclamação", reviewed: "Conferida", not_seen: "Não encontrada", archived: "Arquivada" } as const)[state];
 }
@@ -356,10 +360,11 @@ export default function Home() {
     const groups = new Map<string, WorkOrder[]>();
     chosen.forEach((order) => { const key = normalize(order.address); groups.set(key, [...(groups.get(key) ?? []), order]); });
     [...groups.values()].sort((a, b) => (scores[b[0].id]?.score ?? 0) - (scores[a[0].id]?.score ?? 0)).forEach((group) => {
-      const compatible = activeTeams.filter((team) => group.every((order) => team.services.includes(order.service)) && load[team.id] + group.length <= team.capacity).sort((a, b) => load[a.id] - load[b.id]);
+      const compatible = activeTeams.filter((team) => group.every((order) => teamCanHandle(team, order.service)) && load[team.id] + group.length <= team.capacity).sort((a, b) => load[a.id] - load[b.id]);
       if (compatible[0]) { group.forEach((order) => { next[order.id] = compatible[0].id; }); load[compatible[0].id] += group.length; return; }
-      group.forEach((order) => { const team = activeTeams.filter((item) => item.services.includes(order.service) && load[item.id] < item.capacity).sort((a, b) => load[a.id] - load[b.id])[0]; if (team) { next[order.id] = team.id; load[team.id] += 1; } });
+      group.forEach((order) => { const team = activeTeams.filter((item) => teamCanHandle(item, order.service) && load[item.id] < item.capacity).sort((a, b) => load[a.id] - load[b.id])[0]; if (team) { next[order.id] = team.id; load[team.id] += 1; } });
     });
+    if (!Object.keys(next).length) { setToast("Nenhuma equipe ativa e compatível tinha capacidade para essas OS."); return; }
     setAssignments((current) => ({ ...current, ...next }));
     setRouteCalculated(true);
     setToast(`${label} distribuída entre as equipes para revisão. Nada foi enviado ao Procesa.`);
@@ -367,9 +372,10 @@ export default function Home() {
 
   function createSuggestion() {
     const totalCapacity = activeTeams.reduce((sum, team) => sum + team.capacity, 0);
-    const eligible = orders.filter((order) => !["archived", "not_seen"].includes(order.syncState) && activeTeams.some((team) => team.services.includes(order.service)));
+    const eligible = orders.filter((order) => !["archived", "not_seen"].includes(order.syncState) && activeTeams.some((team) => teamCanHandle(team, order.service)));
     const ranked = [...eligible].sort((a, b) => scores[b.id].score - scores[a.id].score || parseRequestedAt(b.requestedAt) - parseRequestedAt(a.requestedAt)).slice(0, totalCapacity);
     const ids = new Set(ranked.map((order) => order.id));
+    if (!ids.size) { setSuggested(new Set()); setSuggestionFilter("Todos"); setToast("Não foi possível sugerir OS: confira equipes ativas, serviços atendidos e capacidades."); return; }
     setSuggested(ids);
     setSuggestionRank(Object.fromEntries(ranked.map((order, index) => [order.id, index + 1])));
     setSuggestionReasons(Object.fromEntries(ranked.map((order) => [order.id, scores[order.id].reasons])));

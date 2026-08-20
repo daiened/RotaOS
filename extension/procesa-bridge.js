@@ -198,7 +198,10 @@
       const label = `${element.textContent || ""} ${element.getAttribute("title") || ""} ${element.getAttribute("aria-label") || ""} ${element.getAttribute("data-original-title") || ""} ${element.className || ""}`.trim();
       return !isDisabled(element) && /PRÓXIMO|PROXIMO|NEXT|PRÓXIMA PÁGINA|CHEVRON-RIGHT|ANGLE-RIGHT|ARROW-RIGHT|NAVIGATE_NEXT/i.test(label);
     });
-    return labelled || findNextPageButtonLegacy();
+    if (labelled) return labelled;
+    const current = document.querySelector(".dataTables_paginate .current, .pagination .active, [aria-current='page']");
+    const numberedNext = current?.parentElement?.nextElementSibling?.querySelector?.("a, button") || current?.nextElementSibling?.querySelector?.("a, button");
+    return numberedNext && !isDisabled(numberedNext) ? numberedNext : findNextPageButtonLegacy();
   }
 
   function waitForPageChange(previousSignature) {
