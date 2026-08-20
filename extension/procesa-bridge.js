@@ -59,6 +59,26 @@
     return dataRows().filter((row) => /(^|\s)S0?25(?:\s|$)|(^|\s)S199(?:\s|$)|(^|\s)S200(?:\s|$)|(^|\s)S201(?:\s|$)|(^|\s)S202(?:\s|$)/i.test(`${row.requestedService} ${row.serviceType}`));
   }
 
+  function isInRequestedPeriod(row, period) {
+    const match = String(row.requestedAt || "").match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (!match) return !period.from && !period.to;
+    const day = `${match[3]}-${match[2]}-${match[1]}`;
+    return (!period.from || day >= period.from) && (!period.to || day <= period.to);
+  }
+
+  function requestedPeriodFromControls() {
+    return {
+      from: document.getElementById("rotaos-period-from")?.value || "",
+      to: document.getElementById("rotaos-period-to")?.value || "",
+    };
+  }
+
+  function requestedPeriodLabel(period) {
+    if (!period.from && !period.to) return "todas as datas";
+    const format = (value) => value ? value.split("-").reverse().join("/") : "hoje";
+    return `${format(period.from)} a ${format(period.to)}`;
+  }
+
   function rowSignature() {
     return supportedRows().map((row) => row.occurrence).join("|");
   }
@@ -269,13 +289,15 @@
       showMessage("A coleta parou no limite de 100 páginas. Abra a base acumulada para revisar.", true);
       return;
     }
-    const rows = supportedRows();
-    if (!rows.length) {
+    const visibleRows = dataRows();
+    if (!visibleRows.length) {
       showMessage("A tabela ainda não carregou. Tentando novamente…");
       window.setTimeout(continueAutoSync, 1500);
       return;
     }
     setBusy(true, `Coletando página ${page}…`);
+    const period = { from: String(auto.from || ""), to: String(auto.to || "") };
+    const rows = supportedRows().filter((row) => isInRequestedPeriod(row, period));
     const signature = rowSignature();
     const pageMarker = currentPageMarker();
     const session = await addRowsToSession(rows);
@@ -284,6 +306,10 @@
     if (!next) {
       await storageSet({ [AUTO_KEY]: { active: false, page } });
       setBusy(false);
+      if (!session.orders.length) {
+        showMessage(`Nenhuma OS atendida foi encontrada no período ${requestedPeriodLabel(period)}.`, true, true);
+        return;
+      }
       showMessage(`Coleta encerrada na página ${page}: ${session.orders.length} OS acumuladas.`, false, true);
       await openSessionInRotaOS();
       return;
@@ -301,7 +327,12 @@
   }
 
   async function startAutoSync() {
-    await storageSet({ [SESSION_KEY]: { version: 2, source: "Procesa", capturedAt: new Date().toISOString(), mode: "sync", orders: [] }, [AUTO_KEY]: { active: true, page: 1 } });
+    const period = requestedPeriodFromControls();
+    if (period.from && period.to && period.from > period.to) {
+      showMessage("A data inicial precisa ser anterior à data final.", true, true);
+      return;
+    }
+    await storageSet({ [SESSION_KEY]: { version: 2, source: "Procesa", capturedAt: new Date().toISOString(), mode: "sync", orders: [] }, [AUTO_KEY]: { active: true, page: 1, ...period } });
     await continueAutoSync();
   }
 
@@ -339,6 +370,11 @@
     <header><span>R</span><div><strong>Sincronizar com RotaOS</strong><small id="rotaos-bridge-counter">Lendo OS…</small></div><button id="rotaos-bridge-collapse" aria-label="Recolher">−</button></header>
     <div class="rotaos-bridge-body">
       <p>Use na aba Solicitadas. Somente S025, S199, S200, S201 e S202; nada será distribuído no Procesa.</p>
+      <div class="rotaos-period" aria-label="Período da solicitação">
+        <label>De<input id="rotaos-period-from" type="date" /></label>
+        <label>Até<input id="rotaos-period-to" type="date" /></label>
+      </div>
+      <small class="rotaos-period-hint">O período é filtrado pela ponte durante a coleta.</small>
       <button data-action id="rotaos-send-selected">Enviar selecionadas</button>
       <button data-action id="rotaos-sync-pages" class="secondary">Todas as páginas de Solicitadas</button>
       <button data-action id="rotaos-diagnose-pages" class="secondary">Diagnosticar paginação</button>
@@ -372,6 +408,10 @@
   });
   void storageGet([SESSION_KEY, AUTO_KEY]).then(({ [SESSION_KEY]: session, [AUTO_KEY]: auto }) => {
     updateCounter(session?.orders?.length || 0);
+    const from = document.getElementById("rotaos-period-from");
+    const to = document.getElementById("rotaos-period-to");
+    if (from && auto?.from) from.value = auto.from;
+    if (to && auto?.to) to.value = auto.to;
     if (auto?.active) window.setTimeout(continueAutoSync, 1000);
   });
 })();
