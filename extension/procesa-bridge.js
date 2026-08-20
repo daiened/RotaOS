@@ -192,7 +192,10 @@
 
   function findNextPageButton() {
     const isDisabled = (element) => element.disabled || element.getAttribute("aria-disabled") === "true" || element.classList.contains("disabled") || element.closest(".disabled");
-    const direct = Array.from(document.querySelectorAll("[id$='_next'], [data-dt-idx='next'], .dataTables_paginate .paginate_button.next a, .dataTables_paginate .paginate_button.next, .pagination .next a, .pagination [class*='next'] a, [rel='next'], button[aria-label*='Próx'], a[aria-label*='Próx'], button[aria-label*='next' i], a[aria-label*='next' i]")).find((element) => !isDisabled(element));
+    // Procesa usa postback ASP.NET: a paginação real é o botão #btnProxima,
+    // sem texto ou atributo ARIA. Mantemos os demais seletores para variações
+    // de tela, mas este precisa vir primeiro para não interromper a varredura.
+    const direct = Array.from(document.querySelectorAll("#btnProxima, [id$='_next'], [data-dt-idx='next'], .dataTables_paginate .paginate_button.next a, .dataTables_paginate .paginate_button.next, .pagination .next a, .pagination [class*='next'] a, [rel='next'], button[aria-label*='Próx'], a[aria-label*='Próx'], button[aria-label*='next' i], a[aria-label*='next' i]")).find((element) => !isDisabled(element));
     if (direct) return direct;
     const labelled = Array.from(document.querySelectorAll("a, button, [role='button']")).find((element) => {
       const label = `${element.textContent || ""} ${element.getAttribute("title") || ""} ${element.getAttribute("aria-label") || ""} ${element.getAttribute("data-original-title") || ""} ${element.className || ""}`.trim();
