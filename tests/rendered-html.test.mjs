@@ -12,6 +12,8 @@ test("gera o grid oficial focado nos serviços da Camilla", async () => {
   assert.match(pageSource, /Caixa Padrão/);
   assert.match(pageSource, /S200 X/);
   assert.match(pageSource, /S201 X/);
+  assert.match(pageSource, /S199 X/);
+  assert.match(pageSource, /S202 X/);
   assert.match(html, /Sugerir melhores chamados/);
   assert.match(html, /Base de chamados/);
   assert.match(html, /Itens por página/);
@@ -30,7 +32,7 @@ test("mantém a ponte do Procesa somente leitura e limitada aos serviços atendi
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ["storage"]);
   assert.deepEqual(manifest.host_permissions, ["https://procesama.linedata.com.br/*"]);
-  assert.match(bridge, /Somente S025, S200 e S201/);
+  assert.match(bridge, /Somente S025, S199, S200, S201 e S202/);
   assert.match(bridge, /supportedRows/);
   assert.match(bridge, /complaintCount/);
   assert.match(bridge, /rotaosSyncSession/);
@@ -46,7 +48,7 @@ test("prepara o Supabase para histórico e consultas do grid", async () => {
   assert.match(schema, /enable row level security/i);
   assert.match(schema, /owner_id = auth\.uid\(\)/);
   assert.match(schema, /unique \(owner_id, external_id\)/);
-  assert.match(schema, /service_code in \('S025', 'S200 X', 'S201 X'\)/);
+  assert.match(schema, /service_code in \('S025', 'S199 X', 'S200 X', 'S201 X', 'S202 X'\)/);
   assert.match(schema, /complaint_count/);
   assert.match(schema, /order_events/);
   assert.match(client, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);

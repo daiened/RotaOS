@@ -54,7 +54,7 @@
   }
 
   function supportedRows() {
-    return dataRows().filter((row) => /(^|\s)S0?25(?:\s|$)|(^|\s)S200(?:\s|$)|(^|\s)S201(?:\s|$)/i.test(`${row.requestedService} ${row.serviceType}`));
+    return dataRows().filter((row) => /(^|\s)S0?25(?:\s|$)|(^|\s)S199(?:\s|$)|(^|\s)S200(?:\s|$)|(^|\s)S201(?:\s|$)|(^|\s)S202(?:\s|$)/i.test(`${row.requestedService} ${row.serviceType}`));
   }
 
   function rowSignature() {
@@ -192,11 +192,11 @@
 
   function findNextPageButton() {
     const isDisabled = (element) => element.disabled || element.getAttribute("aria-disabled") === "true" || element.classList.contains("disabled") || element.closest(".disabled");
-    const direct = Array.from(document.querySelectorAll("[id$='_next'], .dataTables_paginate .paginate_button.next, .pagination .next a, [rel='next'], button[aria-label*='Próx'], a[aria-label*='Próx']")).find((element) => !isDisabled(element));
+    const direct = Array.from(document.querySelectorAll("[id$='_next'], [data-dt-idx='next'], .dataTables_paginate .paginate_button.next a, .dataTables_paginate .paginate_button.next, .pagination .next a, .pagination [class*='next'] a, [rel='next'], button[aria-label*='Próx'], a[aria-label*='Próx'], button[aria-label*='next' i], a[aria-label*='next' i]")).find((element) => !isDisabled(element));
     if (direct) return direct;
     const labelled = Array.from(document.querySelectorAll("a, button, [role='button']")).find((element) => {
       const label = `${element.textContent || ""} ${element.getAttribute("title") || ""} ${element.getAttribute("aria-label") || ""} ${element.getAttribute("data-original-title") || ""} ${element.className || ""}`.trim();
-      return !isDisabled(element) && /PRÓXIMO|PROXIMO|NEXT|PRÓXIMA PÁGINA|CHEVRON-RIGHT|ANGLE-RIGHT|ARROW-RIGHT|NAVIGATE_NEXT/i.test(label);
+      return !isDisabled(element) && /PRÓXIMO|PROXIMO|NEXT|PRÓXIMA PÁGINA|CHEVRON-RIGHT|ANGLE-RIGHT|ARROW-RIGHT|NAVIGATE_NEXT|PAGE-NEXT|PAGINATION-NEXT/i.test(label);
     });
     if (labelled) return labelled;
     const current = document.querySelector(".dataTables_paginate .current, .pagination .active, [aria-current='page']");
@@ -303,7 +303,7 @@
   panel.innerHTML = `
     <header><span>R</span><div><strong>Sincronizar com RotaOS</strong><small id="rotaos-bridge-counter">Lendo OS…</small></div><button id="rotaos-bridge-collapse" aria-label="Recolher">−</button></header>
     <div class="rotaos-bridge-body">
-      <p>Use na aba Solicitadas. Somente S025, S200 e S201; nada será distribuído no Procesa.</p>
+      <p>Use na aba Solicitadas. Somente S025, S199, S200, S201 e S202; nada será distribuído no Procesa.</p>
       <button data-action id="rotaos-send-selected">Enviar selecionadas</button>
       <button data-action id="rotaos-sync-pages" class="secondary">Todas as páginas de Solicitadas</button>
       <button data-action id="rotaos-diagnose-pages" class="secondary">Diagnosticar paginação</button>

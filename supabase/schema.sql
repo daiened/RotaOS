@@ -11,7 +11,7 @@ create table if not exists public.service_orders (
   source_team text,
   requested_at timestamptz,
   service text not null default 'Passeio',
-  service_code text not null check (service_code in ('S025', 'S200 X', 'S201 X')),
+  service_code text not null check (service_code in ('S025', 'S199 X', 'S200 X', 'S201 X', 'S202 X')),
   detail text not null default '',
   sync_state text not null default 'new' check (sync_state in ('new','updated','complaint','reviewed','not_seen','archived')),
   complaint_count integer not null default 0 check (complaint_count >= 0),

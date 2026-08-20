@@ -6,7 +6,7 @@ O grid do RotaOS consulta o PostgreSQL. Uma coleta da extensão nunca substitui 
 
 ```text
 Procesa autenticado
-  → extensão coleta S025, S200 X e S201 X
+  → extensão coleta S025, S199 X, S200 X, S201 X e S202 X
   → API autenticada do RotaOS valida e recebe lotes
   → PostgreSQL faz upsert pelo número único da OS
   → histórico registra inclusão, alteração e nova reclamação
