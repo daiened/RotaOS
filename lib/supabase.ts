@@ -129,7 +129,7 @@ export async function saveOrders(orders: StoredOrder[], summary: Record<string, 
     .upsert(rows, { onConflict: "owner_id,external_id" });
   if (error) throw error;
 
-  await supabase.from("sync_runs").insert({
+  const { error: syncError } = await supabase.from("sync_runs").insert({
     owner_id: ownerId,
     captured_count: orders.length,
     new_count: summary.new ?? 0,
@@ -137,6 +137,7 @@ export async function saveOrders(orders: StoredOrder[], summary: Record<string, 
     unchanged_count: summary.reviewed ?? 0,
     complaint_count: summary.complaint ?? 0,
   });
+  if (syncError) throw syncError;
 }
 
 export async function loadTeams(): Promise<StoredTeam[]> {

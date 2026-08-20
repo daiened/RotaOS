@@ -193,6 +193,7 @@ export default function Home() {
   const [loginError, setLoginError] = useState("");
   const [busy, setBusy] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [authResolved, setAuthResolved] = useState(false);
 
   const cloudReady = isSupabaseConfigured();
 
@@ -214,7 +215,7 @@ export default function Home() {
         const supported = cloudOrders.map(storedToOrder).filter((order): order is WorkOrder => Boolean(order));
         setOrders(supported);
         if (cloudTeams.length) setTeams(cloudTeams.map((team) => ({ ...team, services: team.services.map((service) => serviceInfo(service)?.service).filter((service): service is Service => Boolean(service)) })));
-      }).catch(() => setToast("Não foi possível consultar a base online."));
+      }).catch(() => setToast("Não foi possível consultar a base online.")).finally(() => setAuthResolved(true));
     }
     return () => window.clearTimeout(timer);
   }, [cloudReady]);
@@ -224,6 +225,14 @@ export default function Home() {
       if (event.source !== window || event.data?.type !== "ROTAOS_IMPORT_FROM_PROCESA") return;
       const incoming = Array.isArray(event.data.payload?.orders) ? event.data.payload.orders : [];
       if (!incoming.length) return;
+      if (cloudReady && !authResolved) {
+        setToast("Aguardando a confirmação da sua sessão para gravar a coleta.");
+        return;
+      }
+      if (cloudReady && !userEmail) {
+        setToast("Entre no RotaOS antes de sincronizar. A coleta continua disponível na extensão.");
+        return;
+      }
       const capturedAt = String(event.data.payload?.capturedAt ?? new Date().toISOString());
       const existing = new Map(orders.map((order) => [order.id, order]));
       const summary = { new: 0, updated: 0, reviewed: 0, complaint: 0 };
@@ -258,24 +267,27 @@ export default function Home() {
 
       const capturedIds = new Set(captured.map((order) => order.id));
       const merged = [...captured, ...orders.filter((order) => !capturedIds.has(order.id))];
-      if (cloudReady && userEmail) {
-        try {
+      try {
+        if (cloudReady) {
           await saveOrders(captured, summary);
           const refreshed = (await loadOrders()).map(storedToOrder).filter((order): order is WorkOrder => Boolean(order));
           setOrders(refreshed);
-        } catch { setToast("A sincronização não foi salva. A base anterior foi preservada."); }
-      } else {
-        setOrders(merged);
+        } else {
+          setOrders(merged);
+        }
+        setSuggested(new Set());
+        setPage(1);
+        setModal(null);
+        setToast(cloudReady ? `${captured.length} OS foram salvas na base online.` : `${captured.length} OS atendidas pela Camilla foram comparadas. Outros serviços foram ignorados.`);
+        window.postMessage({ type: "ROTAOS_IMPORT_ACCEPTED" }, window.location.origin);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Erro desconhecido.";
+        setToast(`A sincronização não foi salva: ${message} A coleta continua disponível na extensão.`);
       }
-      setSuggested(new Set());
-      setPage(1);
-      setModal(null);
-      setToast(`${captured.length} OS atendidas pela Camilla foram comparadas. Outros serviços foram ignorados.`);
-      window.postMessage({ type: "ROTAOS_IMPORT_ACCEPTED" }, window.location.origin);
     }
     window.addEventListener("message", receiveImport);
     return () => window.removeEventListener("message", receiveImport);
-  }, [cloudReady, orders, userEmail]);
+  }, [authResolved, cloudReady, orders, userEmail]);
 
   useEffect(() => {
     if (!toast) return;
