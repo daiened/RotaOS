@@ -77,6 +77,21 @@
     };
   }
 
+  function metadataFromSectionV2(section, occurrence) {
+    const lines = section.split("\n").map((line) => line.trim()).filter(Boolean);
+    const complaintId = new RegExp(`^${occurrence.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/\\d+$`);
+    const entries = [];
+    for (let index = 0; index < lines.length; index += 1) {
+      if (!complaintId.test(lines[index])) continue;
+      const content = lines[index + 1] || "";
+      const date = lines.slice(index + 1, index + 5).find((line) => /\d{2}\/\d{2}\/\d{4}/.test(line)) || "";
+      entries.push({ content, date });
+    }
+    const latest = entries.at(-1);
+    const legacy = metadataFromSection(section);
+    return { detail: latest?.content || legacy.detail, complaintCount: entries.length, latestComplaintAt: latest?.date || legacy.latestComplaintAt };
+  }
+
   async function enrichDetails(rows) {
     const ids = rows.map((row) => row.internalId).filter((id) => /^\d+$/.test(id));
     if (!ids.length) return rows;
@@ -86,7 +101,10 @@
       const html = await response.text();
       const text = new DOMParser().parseFromString(html, "text/html").body.innerText;
       const sections = text.split(/(?=N°:\s*\d+\/\d+\/\d+)/).filter((section) => /^N°:\s*\d/m.test(section));
-      const details = new Map(sections.map((section) => [section.match(/^N°:\s*([^\n]+)/m)?.[1]?.trim(), metadataFromSection(section)]));
+      const details = new Map(sections.map((section) => {
+        const occurrence = section.match(/^N°:\s*([^\n]+)/m)?.[1]?.trim() || "";
+        return [occurrence, metadataFromSectionV2(section, occurrence)];
+      }));
       return rows.map((row) => ({
         ...row,
         detail: details.get(row.occurrence)?.detail || "Detalhe ainda não identificado",
@@ -162,7 +180,7 @@
     }
   }
 
-  function findNextPageButton() {
+  function findNextPageButtonLegacy() {
     const direct = document.querySelector(".paginate_button.next:not(.disabled), li.next:not(.disabled) a, a[rel='next'], button[aria-label*='Próx'], a[aria-label*='Próx']");
     if (direct && !direct.closest(".disabled") && direct.getAttribute("aria-disabled") !== "true") return direct;
     return Array.from(document.querySelectorAll("a, button")).find((element) => {
@@ -170,6 +188,17 @@
       const disabled = element.disabled || element.getAttribute("aria-disabled") === "true" || element.classList.contains("disabled") || element.closest(".disabled");
       return !disabled && /^(PRÓXIMO|PROXIMO|NEXT|›|»)|PRÓXIMA PÁGINA/i.test(label);
     });
+  }
+
+  function findNextPageButton() {
+    const isDisabled = (element) => element.disabled || element.getAttribute("aria-disabled") === "true" || element.classList.contains("disabled") || element.closest(".disabled");
+    const direct = Array.from(document.querySelectorAll("[id$='_next'], .dataTables_paginate .paginate_button.next, .pagination .next a, [rel='next'], button[aria-label*='Próx'], a[aria-label*='Próx']")).find((element) => !isDisabled(element));
+    if (direct) return direct;
+    const labelled = Array.from(document.querySelectorAll("a, button, [role='button']")).find((element) => {
+      const label = `${element.textContent || ""} ${element.getAttribute("title") || ""} ${element.getAttribute("aria-label") || ""} ${element.getAttribute("data-original-title") || ""} ${element.className || ""}`.trim();
+      return !isDisabled(element) && /PRÓXIMO|PROXIMO|NEXT|PRÓXIMA PÁGINA|CHEVRON-RIGHT|ANGLE-RIGHT|ARROW-RIGHT|NAVIGATE_NEXT/i.test(label);
+    });
+    return labelled || findNextPageButtonLegacy();
   }
 
   function waitForPageChange(previousSignature) {
