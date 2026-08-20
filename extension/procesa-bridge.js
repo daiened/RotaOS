@@ -204,6 +204,15 @@
     return numberedNext && !isDisabled(numberedNext) ? numberedNext : findNextPageButtonLegacy();
   }
 
+  async function getNextPageButton() {
+    let next = findNextPageButton();
+    if (next) return next;
+    window.scrollTo(0, document.body.scrollHeight);
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
+    next = findNextPageButton();
+    return next;
+  }
+
   function waitForPageChange(previousSignature) {
     return new Promise((resolve) => {
       const startedAt = Date.now();
@@ -236,10 +245,11 @@
     const signature = rowSignature();
     const session = await addRowsToSession(rows);
     showMessage(`Página ${page} coletada · ${session.orders.length} OS únicas.`);
-    const next = findNextPageButton();
+    const next = await getNextPageButton();
     if (!next) {
       await storageSet({ [AUTO_KEY]: { active: false, page } });
       setBusy(false);
+      showMessage(`Coleta encerrada na página ${page}: ${session.orders.length} OS acumuladas.`);
       await openSessionInRotaOS();
       return;
     }

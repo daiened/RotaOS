@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "RotaOS · Ponte do Procesa",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Coleta S025, S200 e S201 do Procesa para sincronização com o RotaOS, sem alterar o sistema da CESAMA.",
   "permissions": ["storage"],
   "host_permissions": [
