@@ -159,7 +159,7 @@
     rotaTab.opener = null;
     rotaTab.location.href = ROTAOS_URL;
     await storageSet({ rotaosImportQueue: { ...session, capturedAt: new Date().toISOString() } });
-    showMessage(`${session.orders.length} OS enviadas para conferência no RotaOS.`);
+    showMessage(`${session.orders.length} OS enviadas para conferência no RotaOS.`, false, true);
   }
 
   async function sendRows(mode) {
@@ -306,6 +306,7 @@
       <p>Use na aba Solicitadas. Somente S025, S200 e S201; nada será distribuído no Procesa.</p>
       <button data-action id="rotaos-send-selected">Enviar selecionadas</button>
       <button data-action id="rotaos-sync-pages" class="secondary">Todas as páginas de Solicitadas</button>
+      <button data-action id="rotaos-diagnose-pages" class="secondary">Diagnosticar paginação</button>
       <button data-action id="rotaos-open-session" class="secondary">Abrir base acumulada</button>
       <button data-action id="rotaos-clear-session" class="text">Limpar acumuladas</button>
       <small id="rotaos-bridge-progress"></small>
@@ -314,11 +315,25 @@
   document.body.appendChild(panel);
   document.getElementById("rotaos-send-selected")?.addEventListener("click", () => sendRows("selected"));
   document.getElementById("rotaos-sync-pages")?.addEventListener("click", startAutoSync);
+  document.getElementById("rotaos-diagnose-pages")?.addEventListener("click", () => {
+    window.postMessage({ type: "ROTAOS_PROCESA_START_NETWORK_PROBE" }, window.location.origin);
+    showMessage("Diagnóstico ligado. Clique uma vez em Próxima no Procesa; só a rota técnica será verificada.", false, true);
+  });
   document.getElementById("rotaos-open-session")?.addEventListener("click", openSessionInRotaOS);
   document.getElementById("rotaos-clear-session")?.addEventListener("click", clearSession);
   document.getElementById("rotaos-bridge-collapse")?.addEventListener("click", () => panel.classList.toggle("collapsed"));
   document.addEventListener("change", (event) => {
     if (event.target instanceof HTMLInputElement && event.target.type === "checkbox") void storageGet([SESSION_KEY]).then(({ [SESSION_KEY]: session }) => updateCounter(session?.orders?.length || 0));
+  });
+  window.addEventListener("message", (event) => {
+    if (event.source !== window) return;
+    if (event.data?.type === "ROTAOS_PROCESA_NETWORK_READY") {
+      showMessage("Diagnóstico pronto. Clique em Próxima no Procesa para identificar como ele troca de página.", false, true);
+    }
+    if (event.data?.type === "ROTAOS_PROCESA_NETWORK") {
+      const { kind, method, url, status } = event.data;
+      showMessage(`Processa usou ${String(kind).toUpperCase()} ${method} ${url} (status ${status}). A rota de paginação foi identificada.`, false, true);
+    }
   });
   void storageGet([SESSION_KEY, AUTO_KEY]).then(({ [SESSION_KEY]: session, [AUTO_KEY]: auto }) => {
     updateCounter(session?.orders?.length || 0);

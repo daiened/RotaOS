@@ -98,8 +98,8 @@ const initialOrders: WorkOrder[] = orderSeeds.map((order) => ({ ...order, source
 function serviceInfo(raw: string): { service: Service; serviceCode: ServiceCode } | null {
   const value = normalize(raw);
   if (value.includes("S025") || value.includes("CAIXA PADRAO")) return { service: "Caixa Padrão", serviceCode: "S025" };
-  if (value.includes("S200") || value.includes("RECOMPOR MURO")) return { service: "Muro", serviceCode: "S200 X" };
-  if (value.includes("S201") || value.includes("RECOMPOR PASSEIO")) return { service: "Passeio", serviceCode: "S201 X" };
+  if (value === "MURO" || value.includes("S200") || value.includes("RECOMPOR MURO")) return { service: "Muro", serviceCode: "S200 X" };
+  if (value === "PASSEIO" || value.includes("S201") || value.includes("RECOMPOR PASSEIO")) return { service: "Passeio", serviceCode: "S201 X" };
   return null;
 }
 
@@ -181,7 +181,7 @@ export default function Home() {
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
   const [serviceFilter, setServiceFilter] = useState<"Todos" | Service>("Todos");
-  const [stateFilter, setStateFilter] = useState<"Todos" | SyncState>("Todos");
+  const [stateFilter, setStateFilter] = useState<SyncState[]>([]);
   const [suggestionFilter, setSuggestionFilter] = useState<"Todos" | "Sugeridas">("Todos");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -315,7 +315,7 @@ export default function Home() {
       const text = normalize(`${order.id} ${order.address} ${order.neighborhood} ${order.detail} ${order.serviceCode}`);
       return (!query || text.includes(normalize(query)))
         && (serviceFilter === "Todos" || order.service === serviceFilter)
-        && (stateFilter === "Todos" || order.syncState === stateFilter)
+        && (!stateFilter.length || stateFilter.includes(order.syncState))
         && (suggestionFilter === "Todos" || suggested.has(order.id))
         && (teamFilter === "Todas" || assignments[order.id] === teamFilter)
         && requestedTime >= fromTime && requestedTime <= toTime;
@@ -462,9 +462,9 @@ export default function Home() {
           <label><span>De</span><input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} /></label>
           <label><span>Até</span><input type="date" value={dateTo} min={dateFrom} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} /></label>
           <select aria-label="Serviço" value={serviceFilter} onChange={(event) => { setServiceFilter(event.target.value as "Todos" | Service); setPage(1); }}><option>Todos</option><option>Passeio</option><option>Muro</option><option>Caixa Padrão</option></select>
-          <select aria-label="Atualização" value={stateFilter} onChange={(event) => { setStateFilter(event.target.value as "Todos" | SyncState); setPage(1); }}><option value="Todos">Todas as atualizações</option><option value="new">Novas</option><option value="updated">Alteradas</option><option value="complaint">Com reclamação</option><option value="reviewed">Conferidas</option><option value="not_seen">Não encontradas</option></select>
+          <details className="state-multifilter"><summary>{!stateFilter.length ? "Todas as atualizações" : stateFilter.length === 1 ? "1 atualização selecionada" : `${stateFilter.length} atualizações selecionadas`}</summary><div>{(["new", "updated", "complaint", "reviewed", "not_seen"] as SyncState[]).map((state) => <label key={state}><input type="checkbox" checked={stateFilter.includes(state)} onChange={() => { setStateFilter((current) => current.includes(state) ? current.filter((item) => item !== state) : [...current, state]); setPage(1); }} />{stateLabel(state)}</label>)}</div></details>
           <select aria-label="Sugestão" value={suggestionFilter} onChange={(event) => { setSuggestionFilter(event.target.value as "Todos" | "Sugeridas"); setPage(1); }}><option value="Todos">Toda a base</option><option value="Sugeridas">Somente sugeridas</option></select>
-          <button className="prototype-clear-button" onClick={() => { setQuery(""); setDateFrom(""); setDateTo(""); setServiceFilter("Todos"); setStateFilter("Todos"); setSuggestionFilter("Todos"); setTeamFilter("Todas"); setPage(1); }}>Limpar filtros</button>
+          <button className="prototype-clear-button" onClick={() => { setQuery(""); setDateFrom(""); setDateTo(""); setServiceFilter("Todos"); setStateFilter([]); setSuggestionFilter("Todos"); setTeamFilter("Todas"); setPage(1); }}>Limpar filtros</button>
         </div>
         <div className="prototype-selection-bar"><strong>{selected.size} selecionadas</strong><span>{filteredSorted.length} resultados na base.</span><button onClick={togglePage}>{allPageSelected ? "Desmarcar página" : "Selecionar página"}</button></div>
         <div className="prototype-table-wrap"><table className="smart-grid"><thead><tr><th className="selection-header"><input aria-label="Selecionar página" type="checkbox" checked={allPageSelected} onChange={togglePage} /><button onClick={() => changeSort("selected")} title="Ordenar selecionadas primeiro">{sortKey === "selected" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</button></th><th><SortHeader label="ATUALIZAÇÃO" sortKey="state" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>ORDEM DE SERVIÇO</th><th><SortHeader label="DATA" sortKey="date" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="LOCAL" sortKey="location" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="SERVIÇO" sortKey="service" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="RECLAMAÇÕES" sortKey="complaints" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>DETALHES</th><th><SortHeader label="SUGESTÃO ROTAOS" sortKey="suggestion" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="EQUIPE" sortKey="team" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th></tr></thead><tbody>{!pageOrders.length && <tr className="empty-grid-row"><td colSpan={10}>{userEmail ? "A base online está vazia. Sincronize os chamados pelo Procesa para começar." : "Entre no RotaOS para carregar a base online."}</td></tr>}{pageOrders.map((order) => { const team = teams.find((item) => item.id === assignments[order.id]); const isSuggested = suggested.has(order.id); return <tr key={order.id} className={!selected.has(order.id) ? "row-off" : ""}><td><input aria-label={`Selecionar ${order.id}`} type="checkbox" checked={selected.has(order.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(order.id)) next.delete(order.id); else next.add(order.id); return next; })} /></td><td><span className={`sync-badge ${order.syncState}`}>{stateLabel(order.syncState)}</span></td><td><strong>{order.id}</strong></td><td><strong>{order.requestedAt}</strong></td><td><strong>{order.address}</strong><span>{order.neighborhood} · {order.region}</span></td><td><span className={`prototype-service-tag ${order.service === "Caixa Padrão" ? "caixa" : order.service.toLowerCase()}`}>{order.serviceCode} · {order.service}</span></td><td><span className={order.complaintCount ? "complaint-count active" : "complaint-count"}>{order.complaintCount}</span>{order.latestComplaintAt && <small>última: {order.latestComplaintAt}</small>}</td><td><span>{order.detail}</span></td><td>{isSuggested ? <div className="suggestion-cell"><span>#{suggestionRank[order.id]} Sugerida</span><button onClick={() => { setExplainedOrderId(order.id); setModal("suggestion"); }}>Ver motivo</button></div> : <span className="not-suggested">—</span>}</td><td><span className="prototype-team-dot" style={{ background: team?.color ?? "#9a9eaa" }} />{team?.name ?? "A definir"}</td></tr>; })}</tbody></table></div>

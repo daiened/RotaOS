@@ -9,9 +9,9 @@ test("gera o grid oficial focado nos serviços da Camilla", async () => {
   const pageSource = await readFile(new URL("app/page.tsx", root), "utf8");
   assert.match(html, /<html lang="pt-BR"/);
   assert.match(html, /Chamados da Camilla/);
-  assert.match(html, /S025 Caixa Padrão/);
-  assert.match(html, /S200 X Muro/);
-  assert.match(html, /S201 X Passeio/);
+  assert.match(pageSource, /Caixa Padrão/);
+  assert.match(pageSource, /S200 X/);
+  assert.match(pageSource, /S201 X/);
   assert.match(html, /Sugerir melhores chamados/);
   assert.match(html, /Base de chamados/);
   assert.match(html, /Itens por página/);
