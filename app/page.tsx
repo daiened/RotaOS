@@ -243,12 +243,10 @@ export default function Home() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [teamFilter, setTeamFilter] = useState("Todas");
   const [regionFilter, setRegionFilter] = useState("Todas");
   const [modal, setModal] = useState<Modal>(null);
   const [explainedOrderId, setExplainedOrderId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
-  const [routeCalculated, setRouteCalculated] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -257,7 +255,6 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
-  const [gridFocus, setGridFocus] = useState(true);
   const importFileRef = useRef<HTMLInputElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<import("leaflet").Map | null>(null);
@@ -388,10 +385,8 @@ export default function Home() {
     setSuggestionRank({});
     setAssignments({});
     setSuggestionFilter("Todos");
-    setTeamFilter("Todas");
     setRegionFilter("Todas");
     setPage(1);
-    setRouteCalculated(false);
   }, [activeModule]);
 
   useEffect(() => {
@@ -432,7 +427,6 @@ export default function Home() {
         && (serviceFilter === "Todos" || order.service === serviceFilter)
         && (!stateFilter.length || stateFilter.includes(order.syncState))
         && (suggestionFilter === "Todos" || suggested.has(order.id))
-        && (teamFilter === "Todas" || assignments[order.id] === teamFilter)
         && (regionFilter === "Todas" || order.region === regionFilter)
         && requestedTime >= fromTime && requestedTime <= toTime;
     });
@@ -450,7 +444,7 @@ export default function Home() {
       if (sortKey === "team") comparison = (teams.find((team) => team.id === assignments[a.id])?.name ?? "ZZZ").localeCompare(teams.find((team) => team.id === assignments[b.id])?.name ?? "ZZZ", "pt-BR");
       return comparison * factor || parseRequestedAt(b.requestedAt) - parseRequestedAt(a.requestedAt);
     });
-  }, [assignments, dateFrom, dateTo, orders, query, regionFilter, selected, serviceFilter, sortDirection, sortKey, stateFilter, suggested, suggestionFilter, suggestionRank, teamFilter, teams]);
+  }, [assignments, dateFrom, dateTo, orders, query, regionFilter, selected, serviceFilter, sortDirection, sortKey, stateFilter, suggested, suggestionFilter, suggestionRank, teams]);
 
   const totalPages = Math.max(1, Math.ceil(filteredSorted.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -459,7 +453,6 @@ export default function Home() {
   const selectedOrders = scopedOrders.filter((order) => selected.has(order.id));
   const suggestedOrders = scopedOrders.filter((order) => suggested.has(order.id));
   const mapOrders = suggestedOrders.length ? suggestedOrders : selectedOrders.length ? selectedOrders : activeModule === "spreadsheet" ? scopedOrders : [];
-  const teamCounts = Object.fromEntries(teams.map((team) => [team.id, mapOrders.filter((order) => assignments[order.id] === team.id).length]));
   const explainedOrder = orders.find((order) => order.id === explainedOrderId);
 
   useEffect(() => {
@@ -618,7 +611,6 @@ export default function Home() {
     });
     if (!Object.keys(next).length) { setToast("Nenhuma equipe ativa e compatível tinha capacidade para essas OS."); return; }
     setAssignments((current) => ({ ...current, ...next }));
-    setRouteCalculated(true);
     setToast(`${label} distribuída entre as equipes para revisão. Nada foi enviado ao Procesa.`);
   }
 
@@ -670,7 +662,7 @@ export default function Home() {
 
   async function persistTeams() {
     setTeams(draftTeams); window.localStorage.setItem("rotaos-team-settings-v3", JSON.stringify(draftTeams));
-    setModal(null); setRouteCalculated(false);
+    setModal(null);
     if (cloudReady && userEmail) {
       try { await saveTeamsToCloud(draftTeams); setToast("Equipes e capacidades salvas na base online."); }
       catch { setToast("Equipes salvas apenas neste navegador."); }
@@ -706,7 +698,7 @@ export default function Home() {
       <span className={`sidebar-collapsed-status ${userEmail ? "connected" : ""}`} title={userEmail ? `Banco conectado: ${userEmail}` : "Banco não conectado"} />
     </aside>
 
-    <section className={`workspace prototype-workspace ${gridFocus ? "grid-focus" : ""}`}>
+    <section className="workspace prototype-workspace">
       <header className="topbar prototype-topbar"><div><p className="eyebrow">{activeModule === "planning" ? "PLANEJAMENTO DE ROTAS" : "IMPORTAÇÃO DE PRIORIDADES"}</p><h1>{activeModule === "planning" ? "Chamados da Camilla" : "Arquivo de prioridades"}</h1></div></header>
 
       {activeModule === "spreadsheet" && <section className="spreadsheet-import-panel">
@@ -721,15 +713,12 @@ export default function Home() {
         <article><span className="prototype-metric-icon purple">▦</span><div><p>{activeModule === "planning" ? "Base disponível" : "Base importada"}</p><strong>{orders.length}</strong><small>{activeModule === "planning" ? "somente serviços atendidos" : "prioridades do arquivo"}</small></div></article>
         <article><span className="prototype-metric-icon orange">✦</span><div><p>Sugeridas</p><strong>{suggested.size}</strong><small>independente da seleção</small></div></article>
         <article><span className="prototype-metric-icon red">!</span><div><p>{activeModule === "planning" ? "Reclamações" : "Região pendente"}</p><strong>{activeModule === "planning" ? orders.reduce((sum, order) => sum + order.complaintCount, 0) : orders.filter((order) => order.region === "Região a confirmar").length}</strong><small>{activeModule === "planning" ? "ocorrências registradas" : "não informada no arquivo"}</small></div></article>
-        <article><span className="prototype-metric-icon green">✓</span><div><p>Selecionadas</p><strong>{selected.size}</strong><small>escolha manual da Camilla</small></div></article>
+        <article><span className="prototype-metric-icon green">✓</span><div><p>Chamados escolhidos manualmente</p><strong>{selected.size}</strong><small>escolha manual da Camilla</small></div></article>
+        <button type="button" className="prototype-metric-action" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}><span className="prototype-metric-icon blue">⚙</span><div><p>Equipes</p><strong>{activeTeams.length}</strong><small>configurar equipes e capacidade</small></div></button>
+        <button type="button" className="prototype-metric-action" onClick={() => setMapExpanded(true)}><span className="prototype-metric-icon purple">⌖</span><div><p>Mapa</p><strong>Juiz de Fora</strong><small>abrir mapa ampliado</small></div></button>
       </section>
 
-      <div className={routeCalculated ? "prototype-notice calculated" : "prototype-notice"}><span>{routeCalculated ? "✓" : "○"}</span><div><strong>{selected.size} chamados escolhidos manualmente</strong><p>A sugestão do RotaOS não marca nem desmarca estes chamados.</p></div><button className="overview-toggle" onClick={() => setGridFocus((current) => !current)}>{gridFocus ? "Mostrar visão completa" : "Focar base de chamados"}</button><button onClick={() => distribute(selected, "Seleção manual")}>Calcular rotas da seleção →</button></div>
-
-      <section className="prototype-content-grid">
-        <article className={mapExpanded ? "prototype-card prototype-map-card map-expanded" : "prototype-card prototype-map-card"}><div className="prototype-section-heading"><div><h2>{suggested.size ? "Rotas dos chamados sugeridos" : "Visão geral das rotas"}</h2><p>{mapOrders.length} OS em análise{regionFilter !== "Todas" ? ` · ${regionFilter}` : ""}</p></div><div className="map-heading-actions"><span className="prototype-map-state">MAPA JUIZ DE FORA</span><button className="map-expand-button" onClick={() => setMapExpanded((current) => !current)}>{mapExpanded ? "Fechar mapa" : "Ampliar mapa"}</button></div></div><div ref={mapContainerRef} className="prototype-map live-map" aria-label="Mapa de Juiz de Fora" /><div className="map-warning"><strong>{geocodeProgress || (activeModule === "spreadsheet" ? "Localize os endereços para validar a rota" : "Selecione ou sugira OS para analisar no mapa")}</strong><span>{activeModule === "spreadsheet" ? "A localização usa o endereço informado pela CESAMA e fica salva para as próximas consultas." : "O mapa exibe os pontos das OS selecionadas ou sugeridas."}</span>{activeModule === "spreadsheet" && <button className="map-locate-button" disabled={busy || !mapOrders.length} onClick={() => void locateSpreadsheetOrders()}>{busy ? "Localizando…" : "Localizar endereços"}</button>}</div></article>
-        <aside className="prototype-card prototype-team-panel"><div className="prototype-section-heading"><div><h2>Equipes</h2><p>Serviços e capacidade diária</p></div><button className="prototype-icon-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>⚙</button></div><div className="prototype-team-list">{activeTeams.map((team, index) => <button key={team.id} className={teamFilter === team.id ? "prototype-team-row active" : "prototype-team-row"} onClick={() => setTeamFilter(teamFilter === team.id ? "Todas" : team.id)}><span className="prototype-team-number" style={{ background: team.color }}>{index + 1}</span><div><strong>{team.name}</strong><span>{team.services.join(" + ")}</span></div><small>{teamCounts[team.id] ?? 0}/{team.capacity}</small><b>›</b></button>)}</div><div className="prototype-team-actions"><button className="prototype-outline-full" onClick={() => setTeamFilter("Todas")}>Todas as equipes</button><button className="prototype-settings-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>⚙</button></div></aside>
-      </section>
+      <article className={mapExpanded ? "prototype-card prototype-map-card map-expanded" : "prototype-card prototype-map-card map-drawer"}><div className="prototype-section-heading"><div><h2>{suggested.size ? "Rotas dos chamados sugeridos" : "Visão geral das rotas"}</h2><p>{mapOrders.length} OS em análise{regionFilter !== "Todas" ? ` · ${regionFilter}` : ""}</p></div><div className="map-heading-actions"><span className="prototype-map-state">MAPA JUIZ DE FORA</span><button className="map-expand-button" onClick={() => setMapExpanded(false)}>Fechar mapa</button></div></div><div ref={mapContainerRef} className="prototype-map live-map" aria-label="Mapa de Juiz de Fora" /><div className="map-warning"><strong>{geocodeProgress || (activeModule === "spreadsheet" ? "Localize os endereços para validar a rota" : "Selecione ou sugira OS para analisar no mapa")}</strong><span>{activeModule === "spreadsheet" ? "A localização usa o endereço informado pela CESAMA e fica salva para as próximas consultas." : "O mapa exibe os pontos das OS selecionadas ou sugeridas."}</span>{activeModule === "spreadsheet" && <button className="map-locate-button" disabled={busy || !mapOrders.length} onClick={() => void locateSpreadsheetOrders()}>{busy ? "Localizando…" : "Localizar endereços"}</button>}</div></article>
 
       {activeModule === "spreadsheet" && <section className="region-route-panel" aria-label="Rotas por região">
         <div className="region-route-heading"><div><span>ORGANIZAÇÃO DA IMPORTAÇÃO</span><h2>Rotas por região</h2><p>Escolha uma região para ver a base, o mapa e as sugestões daquela rota.</p></div><button className={regionFilter === "Todas" ? "active" : ""} onClick={() => { setRegionFilter("Todas"); setPage(1); }}>Todas ({orders.length})</button></div>
@@ -748,7 +737,7 @@ export default function Home() {
           <select aria-label="Região" value={regionFilter} onChange={(event) => { setRegionFilter(event.target.value); setPage(1); }}><option value="Todas">Todas as regiões</option>{regionOptions.map((region) => <option key={region} value={region}>{region}</option>)}</select>
           <details ref={updateFilterRef} className="state-multifilter"><summary>{!stateFilter.length ? "Todas as atualizações" : stateFilter.map((state) => <span key={state}>{stateLabel(state)}</span>)}</summary><div>{(["new", "updated", "complaint", "reviewed", "not_seen"] as SyncState[]).map((state) => <button key={state} type="button" className={stateFilter.includes(state) ? "selected" : ""} onClick={() => { setStateFilter((current) => current.includes(state) ? current.filter((item) => item !== state) : [...current, state]); setPage(1); }}>{stateLabel(state)}</button>)}</div></details>
           <select aria-label="Sugestão" value={suggestionFilter} onChange={(event) => { setSuggestionFilter(event.target.value as "Todos" | "Sugeridas"); setPage(1); }}><option value="Todos">Toda a base</option><option value="Sugeridas">Somente sugeridas</option></select>
-          <button className="prototype-clear-button" onClick={() => { setQuery(""); setDateFrom(""); setDateTo(""); setServiceFilter("Todos"); setStateFilter([]); setSuggestionFilter("Todos"); setTeamFilter("Todas"); setRegionFilter("Todas"); setPage(1); }}>Limpar filtros</button>
+          <button className="prototype-clear-button" onClick={() => { setQuery(""); setDateFrom(""); setDateTo(""); setServiceFilter("Todos"); setStateFilter([]); setSuggestionFilter("Todos"); setRegionFilter("Todas"); setPage(1); }}>Limpar filtros</button>
         </div>
         <div className="prototype-selection-bar"><strong>{selected.size} selecionadas</strong><span>{filteredSorted.length} resultados na base.</span><button onClick={togglePage}>{allPageSelected ? "Desmarcar página" : "Selecionar página"}</button></div>
         <div className="prototype-table-wrap"><table className="smart-grid"><thead><tr><th className="selection-header"><input aria-label="Selecionar página" type="checkbox" checked={allPageSelected} onChange={togglePage} /><button onClick={() => changeSort("selected")} title="Ordenar selecionadas primeiro">{sortKey === "selected" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</button></th><th><SortHeader label="ATUALIZAÇÃO" sortKey="state" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>ORDEM DE SERVIÇO</th><th><SortHeader label="DATA" sortKey="date" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="LOCAL" sortKey="location" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="REGIÃO" sortKey="region" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="SERVIÇO" sortKey="service" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="RECLAMAÇÕES" sortKey="complaints" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>DETALHES</th><th><SortHeader label="SUGESTÃO ROTAOS" sortKey="suggestion" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="EQUIPE" sortKey="team" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th></tr></thead><tbody>{!pageOrders.length && <tr className="empty-grid-row"><td colSpan={11}>{userEmail ? "A base online está vazia. Sincronize os chamados pelo Procesa para começar." : "Entre no RotaOS para carregar a base online."}</td></tr>}{pageOrders.map((order) => { const team = teams.find((item) => item.id === assignments[order.id]); const isSuggested = suggested.has(order.id); const serviceClass = order.service === "Caixa Padrão" ? "caixa" : order.service === "Meio-fio" || order.service === "Calçamento" ? "recomposition" : order.service.toLowerCase(); return <tr key={order.id} className={!selected.has(order.id) ? "row-off" : ""}><td><input aria-label={`Selecionar ${order.id}`} type="checkbox" checked={selected.has(order.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(order.id)) next.delete(order.id); else next.add(order.id); return next; })} /></td><td><span className={`sync-badge ${order.syncState}`}>{stateLabel(order.syncState)}</span></td><td><strong>{order.id}</strong></td><td><strong>{order.requestedAt}</strong></td><td><strong>{order.address}</strong><span>{order.neighborhood}</span></td><td><span className={order.region === "Região a confirmar" ? "region-cell pending" : "region-cell"}>{order.region}</span></td><td><span className={`prototype-service-tag ${serviceClass}`}>{order.serviceCode} · {order.service}</span></td><td><div className="complaint-cell"><span className={order.complaintCount ? "complaint-count active" : "complaint-count"}>{order.complaintCount}</span>{order.latestComplaintAt && <small>última: {order.latestComplaintAt}</small>}</div></td><td><span>{order.detail}</span></td><td>{isSuggested ? <div className="suggestion-cell"><span>#{suggestionRank[order.id]} Sugerida</span><button onClick={() => { setExplainedOrderId(order.id); setModal("suggestion"); }}>Ver motivo</button></div> : <span className="not-suggested">—</span>}</td><td><span className="prototype-team-dot" style={{ background: team?.color ?? "#9a9eaa" }} />{team?.name ?? "A definir"}</td></tr>; })}</tbody></table></div>

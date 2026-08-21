@@ -207,6 +207,10 @@ footer { padding: 22px 3px 0; display: flex; justify-content: space-between; gap
 .map-expand-button { min-height: 28px; padding: 5px 8px; border: 1px solid #ddd7ff; color: #5c4ba7; background: #fff; border-radius: 6px; font-size: 10px; font-weight: 800; white-space: nowrap; }
 .map-expanded { position: fixed; z-index: 40; inset: 22px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; margin: 0; box-shadow: 0 18px 50px rgba(28, 32, 57, .28); }
 .map-expanded .prototype-map { height: auto !important; min-height: 0; }
+.map-drawer { display: none; }
+.prototype-metrics { grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); }
+.prototype-metrics article, .prototype-metric-action { min-height: 70px; padding: 10px 12px; display: flex; align-items: center; gap: 9px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 10px; text-align: left; }
+.prototype-metric-action { cursor: pointer; }.prototype-metric-action:hover { border-color: #cfc4ff; background: #fbfaff; }.prototype-metric-action > div { min-width: 0; }.prototype-metric-action strong { display: block; }.prototype-metric-action small { display: none; }
 .region-route-panel { margin: 0 0 12px; padding: 13px 15px; border: 1px solid #e3def7; border-radius: 12px; background: #fff; }
 .region-route-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .region-route-heading span { display: block; color: #6e55d7; font-size: 9px; font-weight: 850; letter-spacing: .08em; }
