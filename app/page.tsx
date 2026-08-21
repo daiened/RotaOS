@@ -1,15 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import {
+  clearFileImportOrders,
   currentUserEmail,
   isSupabaseConfigured,
+  loadFileImportOrders,
   loadOrders,
   loadTeams,
+  replaceFileImportOrders,
   saveOrders,
   saveTeams as saveTeamsToCloud,
   signIn,
   signOut,
+  type FileImportOrder,
   type StoredOrder,
 } from "../lib/supabase";
 
@@ -37,7 +42,13 @@ type WorkOrder = {
   sourceHash: string;
   lastSeenAt: string;
   changedAt?: string;
+  source?: "procesa" | "spreadsheet";
+  accountCode?: string;
+  complement?: string;
+  sourceFile?: string;
 };
+
+type WorkspaceModule = "planning" | "spreadsheet";
 
 type TeamConfig = {
   id: string;
@@ -132,6 +143,10 @@ function formatRequestedAt(value: string) {
 function scoreOrder(order: WorkOrder, rules: SuggestionRules) {
   let score = 0;
   const reasons: string[] = [];
+  if (order.source === "spreadsheet") {
+    score += 30;
+    reasons.push("prioridade enviada pela CESAMA");
+  }
   const latestComplaint = order.latestComplaintAt ? parseRequestedAt(order.latestComplaintAt) : 0;
   const complaintAgeDays = latestComplaint ? Math.max(0, (referenceNow - latestComplaint) / 86_400_000) : Number.POSITIVE_INFINITY;
   if (rules.complaints && order.complaintCount > 0 && complaintAgeDays <= 30) {
@@ -170,13 +185,39 @@ function storedToOrder(order: StoredOrder): WorkOrder | null {
   };
 }
 
+function spreadsheetToOrder(order: FileImportOrder): WorkOrder | null {
+  const info = serviceInfo(order.serviceType);
+  if (!info) return null;
+  const base: WorkOrder = {
+    internalId: order.accountCode,
+    id: order.id,
+    address: order.address || "Endereço não informado",
+    neighborhood: order.neighborhood || "Bairro não informado",
+    region: "Região a confirmar",
+    requestedAt: formatRequestedAt(order.requestedAt),
+    ...info,
+    detail: order.observation || "Prioridade enviada sem observação.",
+    syncState: "reviewed",
+    complaintCount: 0,
+    sourceHash: order.sourceHash,
+    lastSeenAt: order.importedAt,
+    source: "spreadsheet",
+    accountCode: order.accountCode,
+    complement: order.complement,
+    sourceFile: order.fileName,
+  };
+  return { ...base, sourceHash: base.sourceHash || fingerprint(base) };
+}
+
 function SortHeader({ label, sortKey, currentKey, direction, onSort }: { label: string; sortKey: SortKey; currentKey: SortKey; direction: SortDirection; onSort: (key: SortKey) => void }) {
   const active = currentKey === sortKey;
   return <button className={active ? "sort-header active" : "sort-header"} onClick={() => onSort(sortKey)}>{label}<span>{active ? (direction === "asc" ? "↑" : "↓") : "↕"}</span></button>;
 }
 
 export default function Home() {
-  const [orders, setOrders] = useState<WorkOrder[]>(initialOrders);
+  const [planningOrders, setPlanningOrders] = useState<WorkOrder[]>(initialOrders);
+  const [spreadsheetOrders, setSpreadsheetOrders] = useState<WorkOrder[]>([]);
+  const [activeModule, setActiveModule] = useState<WorkspaceModule>("planning");
   const [teams, setTeams] = useState<TeamConfig[]>(initialTeams);
   const [draftTeams, setDraftTeams] = useState<TeamConfig[]>(initialTeams);
   const [rules, setRules] = useState<SuggestionRules>(initialRules);
@@ -210,8 +251,10 @@ export default function Home() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
   const [gridFocus, setGridFocus] = useState(true);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const cloudReady = isSupabaseConfigured();
+  const orders = activeModule === "planning" ? planningOrders : spreadsheetOrders;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -229,8 +272,12 @@ export default function Home() {
         if (!email) return;
         const [cloudOrders, cloudTeams] = await Promise.all([loadOrders(), loadTeams()]);
         const supported = cloudOrders.map(storedToOrder).filter((order): order is WorkOrder => Boolean(order));
-        setOrders(supported);
+        setPlanningOrders(supported);
         if (cloudTeams.length) setTeams(cloudTeams.map((team) => ({ ...team, services: normalizeTeamServices(team.services) })));
+        try {
+          const imported = await loadFileImportOrders();
+          setSpreadsheetOrders(imported.map(spreadsheetToOrder).filter((order): order is WorkOrder => Boolean(order)));
+        } catch { /* a migração da importação ainda pode não ter sido aplicada */ }
       }).catch(() => setToast("Não foi possível consultar a base online.")).finally(() => setAuthResolved(true));
     }
     return () => window.clearTimeout(timer);
@@ -250,7 +297,7 @@ export default function Home() {
         return;
       }
       const capturedAt = String(event.data.payload?.capturedAt ?? new Date().toISOString());
-      const existing = new Map(orders.map((order) => [order.id, order]));
+      const existing = new Map(planningOrders.map((order) => [order.id, order]));
       const summary = { new: 0, updated: 0, reviewed: 0, complaint: 0 };
       const captured: WorkOrder[] = incoming.map((raw: Record<string, unknown>, index: number): WorkOrder | null => {
         const info = serviceInfo(`${String(raw.serviceType ?? "")} ${String(raw.requestedService ?? "")} ${String(raw.detail ?? "")}`);
@@ -283,14 +330,14 @@ export default function Home() {
       }).filter((order: WorkOrder | null): order is WorkOrder => Boolean(order));
 
       const capturedIds = new Set(captured.map((order) => order.id));
-      const merged = [...captured, ...orders.filter((order) => !capturedIds.has(order.id))];
+      const merged = [...captured, ...planningOrders.filter((order) => !capturedIds.has(order.id))];
       try {
         if (cloudReady) {
           await saveOrders(captured, summary);
           const refreshed = (await loadOrders()).map(storedToOrder).filter((order): order is WorkOrder => Boolean(order));
-          setOrders(refreshed);
+          setPlanningOrders(refreshed);
         } else {
-          setOrders(merged);
+          setPlanningOrders(merged);
         }
         setSuggested(new Set());
         setPage(1);
@@ -304,7 +351,7 @@ export default function Home() {
     }
     window.addEventListener("message", receiveImport);
     return () => window.removeEventListener("message", receiveImport);
-  }, [authResolved, cloudReady, orders, userEmail]);
+  }, [authResolved, cloudReady, planningOrders, userEmail]);
 
   useEffect(() => {
     if (!toast) return;
@@ -319,6 +366,18 @@ export default function Home() {
     document.addEventListener("pointerdown", closeUpdateFilter);
     return () => document.removeEventListener("pointerdown", closeUpdateFilter);
   }, []);
+
+  useEffect(() => {
+    setSelected(new Set());
+    setSuggested(new Set());
+    setSuggestionReasons({});
+    setSuggestionRank({});
+    setAssignments({});
+    setSuggestionFilter("Todos");
+    setTeamFilter("Todas");
+    setPage(1);
+    setRouteCalculated(false);
+  }, [activeModule]);
 
   const activeTeams = teams.filter((team) => team.active);
   const scores = useMemo(() => Object.fromEntries(orders.map((order) => [order.id, scoreOrder(order, rules)])), [orders, rules]);
@@ -361,6 +420,75 @@ export default function Home() {
   const teamCounts = Object.fromEntries(teams.map((team) => [team.id, mapOrders.filter((order) => assignments[order.id] === team.id).length]));
   const pinPositions = [[15, 22], [24, 33], [31, 20], [55, 18], [67, 28], [61, 40], [30, 62], [42, 72], [49, 58], [66, 65], [74, 55], [82, 72], [58, 78], [20, 48], [78, 35]];
   const explainedOrder = orders.find((order) => order.id === explainedOrderId);
+
+  async function handleSpreadsheetFile(file: File) {
+    if (!/\.xlsx$/i.test(file.name)) {
+      setToast("Selecione um arquivo XLSX enviado pela CESAMA.");
+      return;
+    }
+    if (cloudReady && !userEmail) {
+      setToast("Entre no RotaOS antes de importar o arquivo.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array", cellDates: false });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      if (!firstSheet) throw new Error("A planilha não possui uma aba para leitura.");
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: "", raw: false, dateNF: "dd/mm/yyyy hh:mm:ss" });
+      const importedAt = new Date().toISOString();
+      const byId = new Map<string, FileImportOrder>();
+      rows.forEach((raw) => {
+        const values = Object.fromEntries(Object.entries(raw).map(([key, value]) => [normalize(key), String(value ?? "").trim()]));
+        const id = values["CODIGO OCORRENCIA"] || values["OCORRENCIA"];
+        const serviceType = values["TIPO OCORRENCIA"] || values["SERVICO SOLICITADO"];
+        if (!id || !serviceInfo(serviceType)) return;
+        const item: FileImportOrder = {
+          id,
+          accountCode: values["CODIGO"] || "",
+          address: values["ENDERECO"] || "Endereço não informado",
+          neighborhood: values["BAIRRO"] || "Bairro não informado",
+          complement: values["COMPLEMENTO"] || "",
+          requestedAt: values["DATA SOLICITACAO"] || "",
+          serviceType,
+          observation: values["OBSERVACAO"] || "",
+          sourceHash: normalize([id, values["DATA SOLICITACAO"], values["ENDERECO"], values["BAIRRO"], serviceType, values["OBSERVACAO"]].join("|")),
+          fileName: file.name,
+          importedAt,
+        };
+        byId.set(item.id, item);
+      });
+      const imported = Array.from(byId.values());
+      if (!imported.length) throw new Error("Não encontrei OS atendidas nas colunas do arquivo.");
+      if (cloudReady) await replaceFileImportOrders(imported);
+      setSpreadsheetOrders(imported.map(spreadsheetToOrder).filter((order): order is WorkOrder => Boolean(order)));
+      setActiveModule("spreadsheet");
+      setToast(`${imported.length} OS de prioridade foram importadas${cloudReady ? " e salvas na base" : " neste navegador"}.`);
+    } catch (error) {
+      setToast(error instanceof Error ? `Não foi possível importar: ${error.message}` : "Não foi possível ler o arquivo XLSX.");
+    } finally {
+      setBusy(false);
+      if (importFileRef.current) importFileRef.current.value = "";
+    }
+  }
+
+  async function clearSpreadsheetImport() {
+    if (!spreadsheetOrders.length || !window.confirm("Remover todas as OS deste arquivo de prioridade? A base do Procesa não será alterada.")) return;
+    setBusy(true);
+    try {
+      if (cloudReady) await clearFileImportOrders();
+      setSpreadsheetOrders([]);
+      setSelected(new Set());
+      setSuggested(new Set());
+      setAssignments({});
+      setToast("Importação removida. A base do Procesa foi mantida.");
+    } catch (error) {
+      setToast(error instanceof Error ? `Não foi possível limpar: ${error.message}` : "Não foi possível limpar a importação.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function changeSort(key: SortKey) {
     if (sortKey === key) setSortDirection((current) => current === "asc" ? "desc" : "asc");
@@ -411,7 +539,11 @@ export default function Home() {
     try {
       await signIn(loginEmail, loginPassword); setUserEmail(loginEmail);
       const refreshed = (await loadOrders()).map(storedToOrder).filter((order): order is WorkOrder => Boolean(order));
-      setOrders(refreshed);
+      setPlanningOrders(refreshed);
+      try {
+        const imported = await loadFileImportOrders();
+        setSpreadsheetOrders(imported.map(spreadsheetToOrder).filter((order): order is WorkOrder => Boolean(order)));
+      } catch { /* a migração da importação ainda pode não ter sido aplicada */ }
       setModal(null); setToast("Base online conectada.");
     } catch (error) { setLoginError(error instanceof Error ? error.message : "Não foi possível entrar."); }
     finally { setBusy(false); }
@@ -443,22 +575,31 @@ export default function Home() {
   return <main className={sidebarCollapsed ? "app-shell sidebar-is-collapsed" : "app-shell"}>
     <aside className="sidebar">
       <button className="brand" onClick={() => setSidebarCollapsed((current) => !current)} aria-label={sidebarCollapsed ? "Mostrar menu lateral" : "Ocultar menu lateral"} title={sidebarCollapsed ? "Mostrar menu lateral" : "Ocultar menu lateral"}><span className="brand-mark">R</span><span>RotaOS</span></button>
-      <nav className="module-switcher" aria-label="Módulos"><button className="current-module active"><span>01</span><div><strong>Planejamento</strong><small>base e rotas</small></div></button></nav>
+      <nav className="module-switcher" aria-label="Módulos">
+        <button className={activeModule === "planning" ? "current-module active" : "current-module"} onClick={() => setActiveModule("planning")}><span>01</span><div><strong>Planejamento</strong><small>base e rotas</small></div></button>
+        <button className={activeModule === "spreadsheet" ? "current-module active" : "current-module"} onClick={() => setActiveModule("spreadsheet")}><span>02</span><div><strong>Importação</strong><small>arquivo de prioridade</small></div></button>
+      </nav>
       <div className="sidebar-note environment-note"><span>VERSÃO ÚNICA</span><strong>RotaOS oficial</strong><p>Atualizações são publicadas no endereço oficial do GitHub Pages.</p></div>
       <div className={`cloud-status ${userEmail ? "connected" : ""}`}><i /><div><strong>{userEmail ? "Banco conectado" : cloudReady ? "Banco pronto" : "Banco ainda não conectado"}</strong><small>{userEmail ?? (cloudReady ? "Clique em Entrar no topo" : "Modo demonstrativo local")}</small></div></div>
-      <div className="sidebar-actions">{cloudReady && <button className="secondary" onClick={() => userEmail ? void signOut().then(() => setUserEmail(null)) : setModal("login")}>{userEmail ? "Sair" : "Entrar"}</button>}<button className="secondary" onClick={() => setModal("import")}>Sincronizar Procesa</button></div>
+      <div className="sidebar-actions">{cloudReady && <button className="secondary" onClick={() => userEmail ? void signOut().then(() => setUserEmail(null)) : setModal("login")}>{userEmail ? "Sair" : "Entrar"}</button>}{activeModule === "planning" ? <button className="secondary" onClick={() => setModal("import")}>Sincronizar Procesa</button> : <button className="secondary" onClick={() => importFileRef.current?.click()}>Importar XLSX</button>}</div>
       <span className={`sidebar-collapsed-status ${userEmail ? "connected" : ""}`} title={userEmail ? `Banco conectado: ${userEmail}` : "Banco não conectado"} />
     </aside>
 
     <section className={`workspace prototype-workspace ${gridFocus ? "grid-focus" : ""}`}>
-      <header className="topbar prototype-topbar"><div><p className="eyebrow">PLANEJAMENTO DE ROTAS</p><h1>Chamados da Camilla</h1></div></header>
+      <header className="topbar prototype-topbar"><div><p className="eyebrow">{activeModule === "planning" ? "PLANEJAMENTO DE ROTAS" : "IMPORTAÇÃO DE PRIORIDADES"}</p><h1>{activeModule === "planning" ? "Chamados da Camilla" : "Arquivo de prioridades"}</h1></div></header>
 
-      <div className="architecture-banner"><strong>Fluxo definitivo</strong><span>Extensão → banco protegido → grid. O grid consultará sempre a base completa, não somente a última coleta.</span><em>{cloudReady && userEmail ? "Base online carregada" : cloudReady ? "Clique em Entrar, no topo da página" : "Conexão online pendente"}</em></div>
+      {activeModule === "spreadsheet" && <section className="spreadsheet-import-panel">
+        <input ref={importFileRef} className="visually-hidden" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleSpreadsheetFile(file); }} />
+        <div><span>ARQUIVO CESAMA</span><strong>{spreadsheetOrders[0]?.sourceFile ?? "Nenhum arquivo importado"}</strong><p>Leitura de ocorrência, data, endereço, bairro, complemento, tipo e observação. Região permanece a confirmar.</p></div>
+        <div className="spreadsheet-import-actions"><button className="primary" disabled={busy} onClick={() => importFileRef.current?.click()}>Importar arquivo XLSX</button><button className="secondary" disabled={busy || !spreadsheetOrders.length} onClick={() => void clearSpreadsheetImport()}>Limpar importação</button></div>
+      </section>}
+
+      <div className="architecture-banner"><strong>{activeModule === "planning" ? "Fluxo definitivo" : "Importação independente"}</strong><span>{activeModule === "planning" ? "Extensão → banco protegido → grid. O grid consultará sempre a base completa, não somente a última coleta." : "XLSX da CESAMA → base de prioridades → grid. A importação não altera a coleta do Procesa."}</span><em>{cloudReady && userEmail ? "Base online carregada" : cloudReady ? "Clique em Entrar, no topo da página" : "Conexão online pendente"}</em></div>
 
       <section className="prototype-metrics">
-        <article><span className="prototype-metric-icon purple">▦</span><div><p>Base disponível</p><strong>{orders.length}</strong><small>somente serviços atendidos</small></div></article>
+        <article><span className="prototype-metric-icon purple">▦</span><div><p>{activeModule === "planning" ? "Base disponível" : "Base importada"}</p><strong>{orders.length}</strong><small>{activeModule === "planning" ? "somente serviços atendidos" : "prioridades do arquivo"}</small></div></article>
         <article><span className="prototype-metric-icon orange">✦</span><div><p>Sugeridas</p><strong>{suggested.size}</strong><small>independente da seleção</small></div></article>
-        <article><span className="prototype-metric-icon red">!</span><div><p>Reclamações</p><strong>{orders.reduce((sum, order) => sum + order.complaintCount, 0)}</strong><small>ocorrências registradas</small></div></article>
+        <article><span className="prototype-metric-icon red">!</span><div><p>{activeModule === "planning" ? "Reclamações" : "Região pendente"}</p><strong>{activeModule === "planning" ? orders.reduce((sum, order) => sum + order.complaintCount, 0) : orders.filter((order) => order.region === "Região a confirmar").length}</strong><small>{activeModule === "planning" ? "ocorrências registradas" : "não informada no arquivo"}</small></div></article>
         <article><span className="prototype-metric-icon green">✓</span><div><p>Selecionadas</p><strong>{selected.size}</strong><small>escolha manual da Camilla</small></div></article>
       </section>
 

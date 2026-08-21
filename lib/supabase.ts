@@ -19,6 +19,20 @@ export type StoredOrder = {
   changedAt?: string;
 };
 
+export type FileImportOrder = {
+  id: string;
+  accountCode: string;
+  address: string;
+  neighborhood: string;
+  complement: string;
+  requestedAt: string;
+  serviceType: string;
+  observation: string;
+  sourceHash: string;
+  fileName: string;
+  importedAt: string;
+};
+
 export type StoredTeam = {
   id: string;
   name: string;
@@ -45,6 +59,20 @@ type ServiceOrderRow = {
   last_seen_at: string;
   changed_at?: string | null;
   latest_complaint_at?: string | null;
+};
+
+type FileImportOrderRow = {
+  external_id: string;
+  account_code?: string | null;
+  address?: string | null;
+  neighborhood?: string | null;
+  complement?: string | null;
+  requested_at?: string | null;
+  service_type?: string | null;
+  observation?: string | null;
+  source_hash?: string | null;
+  file_name?: string | null;
+  imported_at?: string | null;
 };
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -191,6 +219,71 @@ export async function saveOrders(orders: StoredOrder[], summary: Record<string, 
     complaint_count: summary.complaint ?? 0,
   });
   if (syncError) throw syncError;
+}
+
+export async function loadFileImportOrders(): Promise<FileImportOrder[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("file_import_orders")
+    .select("external_id,account_code,address,neighborhood,complement,requested_at,service_type,observation,source_hash,file_name,imported_at")
+    .order("requested_at", { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as unknown as FileImportOrderRow[]).map((row) => ({
+    id: row.external_id,
+    accountCode: row.account_code ?? "",
+    address: row.address ?? "",
+    neighborhood: row.neighborhood ?? "",
+    complement: row.complement ?? "",
+    requestedAt: row.requested_at ?? "",
+    serviceType: row.service_type ?? "",
+    observation: row.observation ?? "",
+    sourceHash: row.source_hash ?? "",
+    fileName: row.file_name ?? "",
+    importedAt: row.imported_at ?? "",
+  }));
+}
+
+export async function replaceFileImportOrders(orders: FileImportOrder[]) {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  const { data: userData } = await supabase.auth.getUser();
+  const ownerId = userData.user?.id;
+  if (!ownerId) throw new Error("Entre no RotaOS antes de importar o arquivo.");
+
+  const { error: deleteError } = await supabase.from("file_import_orders").delete().eq("owner_id", ownerId);
+  if (deleteError) throw deleteError;
+  if (!orders.length) return;
+
+  const rows = orders.map((order) => ({
+    owner_id: ownerId,
+    external_id: order.id,
+    account_code: order.accountCode || null,
+    address: order.address,
+    neighborhood: order.neighborhood,
+    complement: order.complement || null,
+    requested_at: toIsoDateTime(order.requestedAt),
+    service_type: order.serviceType,
+    observation: order.observation,
+    source_hash: order.sourceHash,
+    file_name: order.fileName,
+    imported_at: order.importedAt,
+  }));
+  const batchSize = 250;
+  for (let from = 0; from < rows.length; from += batchSize) {
+    const { error } = await supabase.from("file_import_orders").upsert(rows.slice(from, from + batchSize), { onConflict: "owner_id,external_id" });
+    if (error) throw error;
+  }
+}
+
+export async function clearFileImportOrders() {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  const { data: userData } = await supabase.auth.getUser();
+  const ownerId = userData.user?.id;
+  if (!ownerId) throw new Error("Entre no RotaOS antes de limpar a importação.");
+  const { error } = await supabase.from("file_import_orders").delete().eq("owner_id", ownerId);
+  if (error) throw error;
 }
 
 export async function loadTeams(): Promise<StoredTeam[]> {
