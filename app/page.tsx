@@ -10,6 +10,7 @@ import {
   loadOrders,
   loadTeams,
   replaceFileImportOrders,
+  saveFileImportGeocodes,
   saveOrders,
   saveTeams as saveTeamsToCloud,
   signIn,
@@ -46,6 +47,8 @@ type WorkOrder = {
   accountCode?: string;
   complement?: string;
   sourceFile?: string;
+  latitude?: number;
+  longitude?: number;
 };
 
 type WorkspaceModule = "planning" | "spreadsheet";
@@ -193,7 +196,7 @@ function spreadsheetToOrder(order: FileImportOrder): WorkOrder | null {
     id: order.id,
     address: order.address || "Endereço não informado",
     neighborhood: order.neighborhood || "Bairro não informado",
-    region: "Região a confirmar",
+    region: order.region || "Região a confirmar",
     requestedAt: formatRequestedAt(order.requestedAt),
     ...info,
     detail: order.observation || "Prioridade enviada sem observação.",
@@ -205,6 +208,8 @@ function spreadsheetToOrder(order: FileImportOrder): WorkOrder | null {
     accountCode: order.accountCode,
     complement: order.complement,
     sourceFile: order.fileName,
+    latitude: order.latitude,
+    longitude: order.longitude,
   };
   return { ...base, sourceHash: base.sourceHash || fingerprint(base) };
 }
@@ -239,6 +244,7 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [teamFilter, setTeamFilter] = useState("Todas");
+  const [regionFilter, setRegionFilter] = useState("Todas");
   const [modal, setModal] = useState<Modal>(null);
   const [explainedOrderId, setExplainedOrderId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
@@ -252,6 +258,12 @@ export default function Home() {
   const [authResolved, setAuthResolved] = useState(false);
   const [gridFocus, setGridFocus] = useState(true);
   const importFileRef = useRef<HTMLInputElement>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const leafletMapRef = useRef<import("leaflet").Map | null>(null);
+  const leafletMarkersRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const leafletRef = useRef<typeof import("leaflet") | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [geocodeProgress, setGeocodeProgress] = useState("");
 
   const cloudReady = isSupabaseConfigured();
   const orders = activeModule === "planning" ? planningOrders : spreadsheetOrders;
@@ -375,12 +387,38 @@ export default function Home() {
     setAssignments({});
     setSuggestionFilter("Todos");
     setTeamFilter("Todas");
+    setRegionFilter("Todas");
     setPage(1);
     setRouteCalculated(false);
   }, [activeModule]);
 
+  useEffect(() => {
+    let disposed = false;
+    void import("leaflet").then((leaflet) => {
+      if (disposed || !mapContainerRef.current) return;
+      leafletRef.current = leaflet;
+      const map = leaflet.map(mapContainerRef.current, { zoomControl: true }).setView([-21.7642, -43.3503], 12);
+      leaflet.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap contributors",
+        maxZoom: 19,
+      }).addTo(map);
+      leafletMapRef.current = map;
+      leafletMarkersRef.current = leaflet.layerGroup().addTo(map);
+      setMapReady(true);
+      window.setTimeout(() => map.invalidateSize(), 0);
+    }).catch(() => setToast("Não foi possível carregar o mapa de Juiz de Fora."));
+    return () => { disposed = true; leafletMapRef.current?.remove(); leafletMapRef.current = null; leafletMarkersRef.current = null; };
+  }, []);
+
   const activeTeams = teams.filter((team) => team.active);
   const scores = useMemo(() => Object.fromEntries(orders.map((order) => [order.id, scoreOrder(order, rules)])), [orders, rules]);
+
+  const regionOptions = useMemo(() => Array.from(new Set(orders.map((order) => order.region).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR")), [orders]);
+  const scopedOrders = useMemo(() => regionFilter === "Todas" ? orders : orders.filter((order) => order.region === regionFilter), [orders, regionFilter]);
+  const regionGroups = useMemo(() => regionOptions.map((region) => {
+    const groupOrders = orders.filter((order) => order.region === region);
+    return { region, total: groupOrders.length, neighborhoods: new Set(groupOrders.map((order) => order.neighborhood)).size, selected: groupOrders.filter((order) => selected.has(order.id)).length, suggested: groupOrders.filter((order) => suggested.has(order.id)).length };
+  }), [orders, regionOptions, selected, suggested]);
 
   const filteredSorted = useMemo(() => {
     const fromTime = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : 0;
@@ -393,6 +431,7 @@ export default function Home() {
         && (!stateFilter.length || stateFilter.includes(order.syncState))
         && (suggestionFilter === "Todos" || suggested.has(order.id))
         && (teamFilter === "Todas" || assignments[order.id] === teamFilter)
+        && (regionFilter === "Todas" || order.region === regionFilter)
         && requestedTime >= fromTime && requestedTime <= toTime;
     });
     const factor = sortDirection === "asc" ? 1 : -1;
@@ -408,18 +447,37 @@ export default function Home() {
       if (sortKey === "team") comparison = (teams.find((team) => team.id === assignments[a.id])?.name ?? "ZZZ").localeCompare(teams.find((team) => team.id === assignments[b.id])?.name ?? "ZZZ", "pt-BR");
       return comparison * factor || parseRequestedAt(b.requestedAt) - parseRequestedAt(a.requestedAt);
     });
-  }, [assignments, dateFrom, dateTo, orders, query, selected, serviceFilter, sortDirection, sortKey, stateFilter, suggested, suggestionFilter, suggestionRank, teamFilter, teams]);
+  }, [assignments, dateFrom, dateTo, orders, query, regionFilter, selected, serviceFilter, sortDirection, sortKey, stateFilter, suggested, suggestionFilter, suggestionRank, teamFilter, teams]);
 
   const totalPages = Math.max(1, Math.ceil(filteredSorted.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const pageOrders = filteredSorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const allPageSelected = pageOrders.length > 0 && pageOrders.every((order) => selected.has(order.id));
-  const selectedOrders = orders.filter((order) => selected.has(order.id));
-  const suggestedOrders = orders.filter((order) => suggested.has(order.id));
-  const mapOrders = suggestedOrders.length ? suggestedOrders : selectedOrders;
+  const selectedOrders = scopedOrders.filter((order) => selected.has(order.id));
+  const suggestedOrders = scopedOrders.filter((order) => suggested.has(order.id));
+  const mapOrders = suggestedOrders.length ? suggestedOrders : selectedOrders.length ? selectedOrders : activeModule === "spreadsheet" ? scopedOrders : [];
   const teamCounts = Object.fromEntries(teams.map((team) => [team.id, mapOrders.filter((order) => assignments[order.id] === team.id).length]));
-  const pinPositions = [[15, 22], [24, 33], [31, 20], [55, 18], [67, 28], [61, 40], [30, 62], [42, 72], [49, 58], [66, 65], [74, 55], [82, 72], [58, 78], [20, 48], [78, 35]];
   const explainedOrder = orders.find((order) => order.id === explainedOrderId);
+
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    const leaflet = leafletRef.current;
+    const markers = leafletMarkersRef.current;
+    if (!mapReady || !map || !leaflet || !markers) return;
+    markers.clearLayers();
+    const located = mapOrders.filter((order) => Number.isFinite(order.latitude) && Number.isFinite(order.longitude));
+    located.forEach((order, index) => {
+      const team = teams.find((item) => item.id === assignments[order.id]);
+      const marker = leaflet.marker([order.latitude as number, order.longitude as number], {
+        icon: leaflet.divIcon({ className: "rotaos-map-marker", html: `<span style="background:${team?.color ?? "#6e55d7"}">${index + 1}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
+        title: `${order.id} · ${order.address}`,
+      });
+      marker.on("click", () => setToast(`${order.id} · ${order.address} · ${order.region}`));
+      marker.addTo(markers);
+    });
+    if (located.length === 1) map.setView([located[0].latitude as number, located[0].longitude as number], 15);
+    if (located.length > 1) map.fitBounds(leaflet.latLngBounds(located.map((order) => [order.latitude as number, order.longitude as number])), { padding: [30, 30], maxZoom: 15 });
+  }, [assignments, mapOrders, mapReady, teams]);
 
   async function handleSpreadsheetFile(file: File) {
     if (!/\.xlsx$/i.test(file.name)) {
@@ -449,11 +507,12 @@ export default function Home() {
           accountCode: values["CODIGO"] || "",
           address: values["ENDERECO"] || "Endereço não informado",
           neighborhood: values["BAIRRO"] || "Bairro não informado",
+          region: values["REGIAO"] || "",
           complement: values["COMPLEMENTO"] || "",
           requestedAt: values["DATA SOLICITACAO"] || "",
           serviceType,
           observation: values["OBSERVACAO"] || "",
-          sourceHash: normalize([id, values["DATA SOLICITACAO"], values["ENDERECO"], values["BAIRRO"], serviceType, values["OBSERVACAO"]].join("|")),
+          sourceHash: normalize([id, values["DATA SOLICITACAO"], values["ENDERECO"], values["BAIRRO"], values["REGIAO"], serviceType, values["OBSERVACAO"]].join("|")),
           fileName: file.name,
           importedAt,
         };
@@ -490,6 +549,46 @@ export default function Home() {
     }
   }
 
+  async function locateSpreadsheetOrders() {
+    const pending = scopedOrders.filter((order) => !Number.isFinite(order.latitude) || !Number.isFinite(order.longitude));
+    if (!pending.length) { setToast("Os chamados desta região já estão localizados no mapa."); return; }
+    setBusy(true);
+    const storageKey = "rotaos-address-geocodes-v1";
+    let cache: Record<string, { latitude: number; longitude: number }> = {};
+    try { cache = JSON.parse(window.localStorage.getItem(storageKey) ?? "{}"); } catch { /* cache opcional */ }
+    const found: Array<{ id: string; latitude: number; longitude: number }> = [];
+    try {
+      for (let index = 0; index < pending.length; index += 1) {
+        const order = pending[index];
+        const key = normalize(`${order.address}|${order.neighborhood}|juiz de fora|mg`);
+        setGeocodeProgress(`Localizando ${index + 1} de ${pending.length} endereços…`);
+        let location = cache[key];
+        if (!location) {
+          const search = `${order.address}, ${order.neighborhood}, Juiz de Fora, MG, Brasil`;
+          const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=${encodeURIComponent(search)}`);
+          if (response.ok) {
+            const results = await response.json() as Array<{ lat: string; lon: string }>;
+            if (results[0]) {
+              location = { latitude: Number(results[0].lat), longitude: Number(results[0].lon) };
+              if (Number.isFinite(location.latitude) && Number.isFinite(location.longitude)) cache[key] = location;
+            }
+          }
+          if (index < pending.length - 1) await new Promise((resolve) => window.setTimeout(resolve, 1100));
+        }
+        if (location && Number.isFinite(location.latitude) && Number.isFinite(location.longitude)) found.push({ id: order.id, ...location });
+      }
+      window.localStorage.setItem(storageKey, JSON.stringify(cache));
+      if (found.length) {
+        const byId = new Map(found.map((location) => [location.id, location]));
+        setSpreadsheetOrders((current) => current.map((order) => byId.has(order.id) ? { ...order, ...byId.get(order.id) } : order));
+        if (cloudReady) await saveFileImportGeocodes(found);
+      }
+      setToast(`${found.length} de ${pending.length} endereços foram localizados. Clique nos pontos para conferir a OS.`);
+    } catch (error) {
+      setToast(error instanceof Error ? `A localização parou: ${error.message}` : "Não foi possível localizar os endereços agora.");
+    } finally { setBusy(false); setGeocodeProgress(""); }
+  }
+
   function changeSort(key: SortKey) {
     if (sortKey === key) setSortDirection((current) => current === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDirection(key === "service" || key === "location" || key === "state" || key === "team" ? "asc" : "desc"); }
@@ -516,7 +615,7 @@ export default function Home() {
 
   function createSuggestion() {
     const totalCapacity = activeTeams.reduce((sum, team) => sum + team.capacity, 0);
-    const eligible = orders.filter((order) => !["archived", "not_seen"].includes(order.syncState) && activeTeams.some((team) => teamCanHandle(team, order.service)));
+    const eligible = scopedOrders.filter((order) => !["archived", "not_seen"].includes(order.syncState) && activeTeams.some((team) => teamCanHandle(team, order.service)));
     const ranked = [...eligible].sort((a, b) => scores[b.id].score - scores[a.id].score || parseRequestedAt(b.requestedAt) - parseRequestedAt(a.requestedAt)).slice(0, totalCapacity);
     const ids = new Set(ranked.map((order) => order.id));
     if (!ids.size) { setSuggested(new Set()); setSuggestionFilter("Todos"); setToast("Não foi possível sugerir OS: confira equipes ativas, serviços atendidos e capacidades."); return; }
@@ -590,7 +689,7 @@ export default function Home() {
 
       {activeModule === "spreadsheet" && <section className="spreadsheet-import-panel">
         <input ref={importFileRef} className="visually-hidden" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleSpreadsheetFile(file); }} />
-        <div><span>ARQUIVO CESAMA</span><strong>{spreadsheetOrders[0]?.sourceFile ?? "Nenhum arquivo importado"}</strong><p>Leitura de ocorrência, data, endereço, bairro, complemento, tipo e observação. Região permanece a confirmar.</p></div>
+        <div><span>ARQUIVO CESAMA</span><strong>{spreadsheetOrders[0]?.sourceFile ?? "Nenhum arquivo importado"}</strong><p>Leitura de ocorrência, data, endereço, bairro, região, complemento, tipo e observação. A região organiza a visualização e as sugestões.</p></div>
         <div className="spreadsheet-import-actions"><button className="primary" disabled={busy} onClick={() => importFileRef.current?.click()}>Importar arquivo XLSX</button><button className="secondary" disabled={busy || !spreadsheetOrders.length} onClick={() => void clearSpreadsheetImport()}>Limpar importação</button></div>
       </section>}
 
@@ -606,9 +705,14 @@ export default function Home() {
       <div className={routeCalculated ? "prototype-notice calculated" : "prototype-notice"}><span>{routeCalculated ? "✓" : "○"}</span><div><strong>{selected.size} chamados escolhidos manualmente</strong><p>A sugestão do RotaOS não marca nem desmarca estes chamados.</p></div><button className="overview-toggle" onClick={() => setGridFocus((current) => !current)}>{gridFocus ? "Mostrar visão completa" : "Focar base de chamados"}</button><button onClick={() => distribute(selected, "Seleção manual")}>Calcular rotas da seleção →</button></div>
 
       <section className="prototype-content-grid">
-        <article className="prototype-card prototype-map-card"><div className="prototype-section-heading"><div><h2>{suggested.size ? "Rotas dos chamados sugeridos" : "Visão geral das rotas"}</h2><p>{mapOrders.length} OS em análise · cores por equipe</p></div><span className="prototype-map-state">MAPA ILUSTRATIVO</span></div><div className="prototype-map" aria-label="Mapa ilustrativo"><div className="prototype-river" /><span className="prototype-road road-1" /><span className="prototype-road road-2" /><span className="prototype-road road-3" /><span className="prototype-road road-4" /><span className="prototype-road road-5" /><span className="prototype-district d1">SANTA CRUZ</span><span className="prototype-district d2">BENFICA</span><span className="prototype-district d3">CENTRO</span><span className="prototype-district d4">TEIXEIRAS</span><span className="prototype-district d5">VITORINO BRAGA</span>{mapOrders.slice(0, pinPositions.length).map((order, index) => { const team = teams.find((item) => item.id === assignments[order.id]); const [left, top] = pinPositions[index]; return <span key={order.id} className="prototype-pin" style={{ left: `${left}%`, top: `${top}%`, background: team?.color ?? "#9a9eaa" }}><i>{index + 1}</i></span>; })}<div className="prototype-map-legend">{activeTeams.map((team) => <span key={team.id}><i style={{ background: team.color }} />{team.name}</span>)}</div></div><div className="map-warning"><strong>Distância ainda não calculada</strong><span>A escolha usa recência e reclamações; proximidade real entra na etapa do mapa geográfico.</span></div></article>
+        <article className="prototype-card prototype-map-card"><div className="prototype-section-heading"><div><h2>{suggested.size ? "Rotas dos chamados sugeridos" : "Visão geral das rotas"}</h2><p>{mapOrders.length} OS em análise{regionFilter !== "Todas" ? ` · ${regionFilter}` : ""}</p></div><span className="prototype-map-state">MAPA JUIZ DE FORA</span></div><div ref={mapContainerRef} className="prototype-map live-map" aria-label="Mapa de Juiz de Fora" /><div className="map-warning"><strong>{geocodeProgress || (activeModule === "spreadsheet" ? "Localize os endereços para validar a rota" : "Selecione ou sugira OS para analisar no mapa")}</strong><span>{activeModule === "spreadsheet" ? "A localização usa o endereço informado pela CESAMA e fica salva para as próximas consultas." : "O mapa exibe os pontos das OS selecionadas ou sugeridas."}</span>{activeModule === "spreadsheet" && <button className="map-locate-button" disabled={busy || !mapOrders.length} onClick={() => void locateSpreadsheetOrders()}>{busy ? "Localizando…" : "Localizar endereços"}</button>}</div></article>
         <aside className="prototype-card prototype-team-panel"><div className="prototype-section-heading"><div><h2>Equipes</h2><p>Serviços e capacidade diária</p></div><button className="prototype-icon-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>⚙</button></div><div className="prototype-team-list">{activeTeams.map((team, index) => <button key={team.id} className={teamFilter === team.id ? "prototype-team-row active" : "prototype-team-row"} onClick={() => setTeamFilter(teamFilter === team.id ? "Todas" : team.id)}><span className="prototype-team-number" style={{ background: team.color }}>{index + 1}</span><div><strong>{team.name}</strong><span>{team.services.join(" + ")}</span></div><small>{teamCounts[team.id] ?? 0}/{team.capacity}</small><b>›</b></button>)}</div><div className="prototype-team-actions"><button className="prototype-outline-full" onClick={() => setTeamFilter("Todas")}>Todas as equipes</button><button className="prototype-settings-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>⚙</button></div></aside>
       </section>
+
+      {activeModule === "spreadsheet" && <section className="region-route-panel" aria-label="Rotas por região">
+        <div className="region-route-heading"><div><span>ORGANIZAÇÃO DA IMPORTAÇÃO</span><h2>Rotas por região</h2><p>Escolha uma região para ver a base, o mapa e as sugestões daquela rota.</p></div><button className={regionFilter === "Todas" ? "active" : ""} onClick={() => { setRegionFilter("Todas"); setPage(1); }}>Todas ({orders.length})</button></div>
+        <div className="region-route-list">{regionGroups.map((group) => <button key={group.region} className={regionFilter === group.region ? "active" : ""} onClick={() => { setRegionFilter(group.region); setPage(1); }}><strong>{group.region}</strong><span>{group.total} OS · {group.neighborhoods} bairros</span><small>{group.suggested ? `${group.suggested} sugeridas` : group.selected ? `${group.selected} selecionadas` : "Ver rota"}</small></button>)}</div>
+      </section>}
 
       <div className="grid-actions"><button className="icon-action grid-rules-action" onClick={() => { setDraftRules(rules); setModal("rules"); }} aria-label="Configurar critérios" title="Configurar critérios">⚙</button><button className="primary smart-button" onClick={createSuggestion}>✦ Sugerir melhores chamados</button><button className="secondary" onClick={() => distribute(selected, "Seleção manual")}>Calcular rotas da seleção →</button></div>
       {orders.some((order) => order.processaTeam) && <div className="processa-team-alert"><strong>Atenção para validação com a Camilla</strong><span>{orders.filter((order) => order.processaTeam).length} OS já exibem uma equipe no Procesa. Isso pode indicar uma distribuição anterior ainda não finalizada; o RotaOS não as atribui automaticamente.</span></div>}
@@ -621,7 +725,7 @@ export default function Home() {
           <select aria-label="Serviço" value={serviceFilter} onChange={(event) => { setServiceFilter(event.target.value as "Todos" | Service); setPage(1); }}><option>Todos</option><option>Passeio</option><option>Muro</option><option>Caixa Padrão</option><option>Meio-fio</option><option>Calçamento</option></select>
           <details ref={updateFilterRef} className="state-multifilter"><summary>{!stateFilter.length ? "Todas as atualizações" : stateFilter.map((state) => <span key={state}>{stateLabel(state)}</span>)}</summary><div>{(["new", "updated", "complaint", "reviewed", "not_seen"] as SyncState[]).map((state) => <button key={state} type="button" className={stateFilter.includes(state) ? "selected" : ""} onClick={() => { setStateFilter((current) => current.includes(state) ? current.filter((item) => item !== state) : [...current, state]); setPage(1); }}>{stateLabel(state)}</button>)}</div></details>
           <select aria-label="Sugestão" value={suggestionFilter} onChange={(event) => { setSuggestionFilter(event.target.value as "Todos" | "Sugeridas"); setPage(1); }}><option value="Todos">Toda a base</option><option value="Sugeridas">Somente sugeridas</option></select>
-          <button className="prototype-clear-button" onClick={() => { setQuery(""); setDateFrom(""); setDateTo(""); setServiceFilter("Todos"); setStateFilter([]); setSuggestionFilter("Todos"); setTeamFilter("Todas"); setPage(1); }}>Limpar filtros</button>
+          <button className="prototype-clear-button" onClick={() => { setQuery(""); setDateFrom(""); setDateTo(""); setServiceFilter("Todos"); setStateFilter([]); setSuggestionFilter("Todos"); setTeamFilter("Todas"); setRegionFilter("Todas"); setPage(1); }}>Limpar filtros</button>
         </div>
         <div className="prototype-selection-bar"><strong>{selected.size} selecionadas</strong><span>{filteredSorted.length} resultados na base.</span><button onClick={togglePage}>{allPageSelected ? "Desmarcar página" : "Selecionar página"}</button></div>
         <div className="prototype-table-wrap"><table className="smart-grid"><thead><tr><th className="selection-header"><input aria-label="Selecionar página" type="checkbox" checked={allPageSelected} onChange={togglePage} /><button onClick={() => changeSort("selected")} title="Ordenar selecionadas primeiro">{sortKey === "selected" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</button></th><th><SortHeader label="ATUALIZAÇÃO" sortKey="state" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>ORDEM DE SERVIÇO</th><th><SortHeader label="DATA" sortKey="date" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="LOCAL" sortKey="location" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="SERVIÇO" sortKey="service" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="RECLAMAÇÕES" sortKey="complaints" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th>DETALHES</th><th><SortHeader label="SUGESTÃO ROTAOS" sortKey="suggestion" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th><th><SortHeader label="EQUIPE" sortKey="team" currentKey={sortKey} direction={sortDirection} onSort={changeSort} /></th></tr></thead><tbody>{!pageOrders.length && <tr className="empty-grid-row"><td colSpan={10}>{userEmail ? "A base online está vazia. Sincronize os chamados pelo Procesa para começar." : "Entre no RotaOS para carregar a base online."}</td></tr>}{pageOrders.map((order) => { const team = teams.find((item) => item.id === assignments[order.id]); const isSuggested = suggested.has(order.id); const serviceClass = order.service === "Caixa Padrão" ? "caixa" : order.service === "Meio-fio" || order.service === "Calçamento" ? "recomposition" : order.service.toLowerCase(); return <tr key={order.id} className={!selected.has(order.id) ? "row-off" : ""}><td><input aria-label={`Selecionar ${order.id}`} type="checkbox" checked={selected.has(order.id)} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(order.id)) next.delete(order.id); else next.add(order.id); return next; })} /></td><td><span className={`sync-badge ${order.syncState}`}>{stateLabel(order.syncState)}</span></td><td><strong>{order.id}</strong></td><td><strong>{order.requestedAt}</strong></td><td><strong>{order.address}</strong><span>{order.neighborhood} · {order.region}</span></td><td><span className={`prototype-service-tag ${serviceClass}`}>{order.serviceCode} · {order.service}</span></td><td><span className={order.complaintCount ? "complaint-count active" : "complaint-count"}>{order.complaintCount}</span>{order.latestComplaintAt && <small>última: {order.latestComplaintAt}</small>}</td><td><span>{order.detail}</span></td><td>{isSuggested ? <div className="suggestion-cell"><span>#{suggestionRank[order.id]} Sugerida</span><button onClick={() => { setExplainedOrderId(order.id); setModal("suggestion"); }}>Ver motivo</button></div> : <span className="not-suggested">—</span>}</td><td><span className="prototype-team-dot" style={{ background: team?.color ?? "#9a9eaa" }} />{team?.name ?? "A definir"}</td></tr>; })}</tbody></table></div>

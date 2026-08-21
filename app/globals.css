@@ -1,3 +1,4 @@
+@import "leaflet/dist/leaflet.css";
 @import "tailwindcss";
 
 :root {
@@ -190,8 +191,29 @@ footer { padding: 22px 3px 0; display: flex; justify-content: space-between; gap
 .spreadsheet-import-panel p { margin: 5px 0 0; color: #6d7390; font-size: 11px; line-height: 1.45; }
 .spreadsheet-import-actions { display: flex; flex: 0 0 auto; gap: 8px; }
 .spreadsheet-import-actions button { min-height: 36px; white-space: nowrap; }
+.live-map { z-index: 0; background: #e9edf0; }
+.live-map::before { display: none; }
+.live-map.leaflet-container { font: inherit; }
+.rotaos-map-marker { width: 30px !important; height: 30px !important; display: grid; place-items: center; }
+.rotaos-map-marker span { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 2px 8px rgba(25, 29, 50, .28); font-size: 11px; font-weight: 850; }
+.map-warning { align-items: center; }
+.map-warning > span { flex: 1; }
+.map-locate-button { flex: 0 0 auto; min-height: 30px; padding: 6px 9px; border: 1px solid #cfc4ff; color: #5941bf; background: #f7f5ff; border-radius: 7px; font-size: 10px; font-weight: 800; }
+.map-locate-button:disabled { opacity: .55; }
+.region-route-panel { margin: 0 0 12px; padding: 13px 15px; border: 1px solid #e3def7; border-radius: 12px; background: #fff; }
+.region-route-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.region-route-heading span { display: block; color: #6e55d7; font-size: 9px; font-weight: 850; letter-spacing: .08em; }
+.region-route-heading h2 { margin: 3px 0 0; font-size: 15px; }
+.region-route-heading p { margin: 4px 0 0; color: #74798d; font-size: 10px; }
+.region-route-heading > button { min-height: 32px; padding: 6px 10px; border: 1px solid #ddd7ff; color: #5c4ba7; background: #fff; border-radius: 7px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.region-route-heading > button.active, .region-route-list button.active { color: #fff; background: #6e55d7; border-color: #6e55d7; }
+.region-route-list { margin-top: 11px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+.region-route-list button { min-height: 68px; padding: 10px; display: grid; gap: 3px; border: 1px solid #e3e4eb; color: #30354a; background: #fafaff; border-radius: 8px; text-align: left; }
+.region-route-list button strong { font-size: 12px; }
+.region-route-list button span, .region-route-list button small { color: #73798c; font-size: 10px; }
+.region-route-list button.active span, .region-route-list button.active small { color: #f0edff; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
-@media (max-width: 760px) { .spreadsheet-import-panel { align-items: stretch; flex-direction: column; gap: 12px; }.spreadsheet-import-actions { flex-direction: column; }.spreadsheet-import-actions button { width: 100%; } }
+@media (max-width: 760px) { .spreadsheet-import-panel { align-items: stretch; flex-direction: column; gap: 12px; }.spreadsheet-import-actions { flex-direction: column; }.spreadsheet-import-actions button { width: 100%; }.region-route-heading { align-items: flex-start; flex-direction: column; }.map-warning { align-items: flex-start; flex-direction: column; }.map-locate-button { width: 100%; } }
 .state-multifilter { position: relative; width: 100%; color: #505665; font-size: 11px; }.state-multifilter summary { height: 40px; padding: 0 10px; display: flex; align-items: center; gap: 5px; cursor: pointer; list-style: none; overflow: hidden; white-space: nowrap; border: 1px solid #dedfe5; border-radius: 7px; background: #fff; }.state-multifilter summary::-webkit-details-marker { display: none; }.state-multifilter summary::after { content: "⌄"; margin-left: auto; color: #707586; font-size: 15px; }.state-multifilter[open] summary { border-color: #9b8aec; box-shadow: 0 0 0 3px #f0edff; }.state-multifilter summary > span { max-width: 105px; padding: 4px 6px; overflow: hidden; color: #fff; background: #6196e8; border-radius: 4px; font-size: 9px; font-weight: 750; text-overflow: ellipsis; }.state-multifilter > div { position: absolute; z-index: 15; top: calc(100% + 5px); right: 0; width: 100%; min-width: 180px; padding: 4px; display: grid; gap: 1px; border: 1px solid #ddd7ff; border-radius: 8px; background: #fff; box-shadow: 0 12px 28px rgba(42, 35, 78, .14); }.state-multifilter > div button { width: 100%; padding: 9px 10px; border: 0; border-radius: 5px; color: #3c4352; background: transparent; text-align: left; font-size: 11px; }.state-multifilter > div button:hover { background: #ece8ff; }.state-multifilter > div button.selected { color: #fff; background: #5c94ed; }
 .complaint-count { width: 28px; height: 28px; display: grid; place-items: center; color: #777c8b; background: #eff0f3; border-radius: 50%; font-weight: 850; }.complaint-count.active { color: #a23f3f; background: #ffe7e7; }
 .suggestion-cell { display: flex; align-items: center; gap: 7px; }.suggestion-cell > span { margin: 0; padding: 5px 7px; color: #5e47c1; background: #eee9ff; border-radius: 6px; font-size: 10px; font-weight: 850; white-space: nowrap; }.suggestion-cell button { padding: 3px; border: 0; color: #6550bd; background: transparent; font-size: 9px; font-weight: 800; white-space: nowrap; }.not-suggested { color: #afb1ba; }

@@ -24,6 +24,9 @@ export type FileImportOrder = {
   accountCode: string;
   address: string;
   neighborhood: string;
+  region: string;
+  latitude?: number;
+  longitude?: number;
   complement: string;
   requestedAt: string;
   serviceType: string;
@@ -66,6 +69,9 @@ type FileImportOrderRow = {
   account_code?: string | null;
   address?: string | null;
   neighborhood?: string | null;
+  region?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   complement?: string | null;
   requested_at?: string | null;
   service_type?: string | null;
@@ -226,7 +232,7 @@ export async function loadFileImportOrders(): Promise<FileImportOrder[]> {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from("file_import_orders")
-    .select("external_id,account_code,address,neighborhood,complement,requested_at,service_type,observation,source_hash,file_name,imported_at")
+    .select("external_id,account_code,address,neighborhood,region,latitude,longitude,complement,requested_at,service_type,observation,source_hash,file_name,imported_at")
     .order("requested_at", { ascending: false });
   if (error) throw error;
   return ((data ?? []) as unknown as FileImportOrderRow[]).map((row) => ({
@@ -234,6 +240,9 @@ export async function loadFileImportOrders(): Promise<FileImportOrder[]> {
     accountCode: row.account_code ?? "",
     address: row.address ?? "",
     neighborhood: row.neighborhood ?? "",
+    region: row.region ?? "",
+    latitude: row.latitude ?? undefined,
+    longitude: row.longitude ?? undefined,
     complement: row.complement ?? "",
     requestedAt: row.requested_at ?? "",
     serviceType: row.service_type ?? "",
@@ -261,6 +270,9 @@ export async function replaceFileImportOrders(orders: FileImportOrder[]) {
     account_code: order.accountCode || null,
     address: order.address,
     neighborhood: order.neighborhood,
+    region: order.region || null,
+    latitude: order.latitude ?? null,
+    longitude: order.longitude ?? null,
     complement: order.complement || null,
     requested_at: toIsoDateTime(order.requestedAt),
     service_type: order.serviceType,
@@ -272,6 +284,22 @@ export async function replaceFileImportOrders(orders: FileImportOrder[]) {
   const batchSize = 250;
   for (let from = 0; from < rows.length; from += batchSize) {
     const { error } = await supabase.from("file_import_orders").upsert(rows.slice(from, from + batchSize), { onConflict: "owner_id,external_id" });
+    if (error) throw error;
+  }
+}
+
+export async function saveFileImportGeocodes(locations: Array<{ id: string; latitude: number; longitude: number }>) {
+  const supabase = getSupabase();
+  if (!supabase || !locations.length) return;
+  const { data: userData } = await supabase.auth.getUser();
+  const ownerId = userData.user?.id;
+  if (!ownerId) throw new Error("Entre no RotaOS antes de salvar as localizacoes.");
+  for (const location of locations) {
+    const { error } = await supabase
+      .from("file_import_orders")
+      .update({ latitude: location.latitude, longitude: location.longitude })
+      .eq("owner_id", ownerId)
+      .eq("external_id", location.id);
     if (error) throw error;
   }
 }
