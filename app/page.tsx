@@ -220,7 +220,7 @@ function SortHeader({ label, sortKey, currentKey, direction, onSort }: { label: 
 }
 
 export default function Home() {
-  const [planningOrders, setPlanningOrders] = useState<WorkOrder[]>(initialOrders);
+  const [planningOrders, setPlanningOrders] = useState<WorkOrder[]>([]);
   const [spreadsheetOrders, setSpreadsheetOrders] = useState<WorkOrder[]>([]);
   const [activeModule, setActiveModule] = useState<WorkspaceModule>("planning");
   const [teams, setTeams] = useState<TeamConfig[]>(initialTeams);
@@ -252,6 +252,7 @@ export default function Home() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [busy, setBusy] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -656,6 +657,17 @@ export default function Home() {
     finally { setBusy(false); }
   }
 
+  async function handleSignOut() {
+    setPlanningOrders([]);
+    setSpreadsheetOrders([]);
+    setSelected(new Set());
+    setSuggested(new Set());
+    setAssignments({});
+    window.localStorage.removeItem("rotaos-address-geocodes-v1");
+    await signOut();
+    window.location.reload();
+  }
+
   async function persistTeams() {
     setTeams(draftTeams); window.localStorage.setItem("rotaos-team-settings-v3", JSON.stringify(draftTeams));
     setModal(null); setRouteCalculated(false);
@@ -679,6 +691,8 @@ export default function Home() {
     }));
   }
 
+  if (cloudReady && !userEmail) return <main className="login-screen"><form className="login-card" onSubmit={handleLogin}><div className="login-brand"><span className="brand-mark">R</span><strong>RotaOS</strong></div><p className="modal-kicker">BASE ONLINE</p><h1>Entrar no RotaOS</h1><p>Use o e-mail e a senha cadastrados no RotaOS. A senha do Procesa nunca é usada aqui.</p><label><span>E-mail</span><input type="email" required value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} /></label><label><span>Senha do RotaOS</span><span className="password-input"><input type={showLoginPassword ? "text" : "password"} required value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} /><button type="button" onClick={() => setShowLoginPassword((current) => !current)} aria-label={showLoginPassword ? "Ocultar senha" : "Mostrar senha"} title={showLoginPassword ? "Ocultar senha" : "Mostrar senha"}>{showLoginPassword ? "◉" : "◌"}</button></span></label>{loginError && <div className="modal-warning">{loginError}</div>}<button className="primary full" disabled={busy}>{busy ? "Entrando…" : "Entrar"}</button></form></main>;
+
   return <main className={sidebarCollapsed ? "app-shell sidebar-is-collapsed" : "app-shell"}>
     <aside className="sidebar">
       <button className="brand" onClick={() => setSidebarCollapsed((current) => !current)} aria-label={sidebarCollapsed ? "Mostrar menu lateral" : "Ocultar menu lateral"} title={sidebarCollapsed ? "Mostrar menu lateral" : "Ocultar menu lateral"}><span className="brand-mark">R</span><span>RotaOS</span></button>
@@ -688,7 +702,7 @@ export default function Home() {
       </nav>
       <div className="sidebar-note environment-note"><span>VERSÃO ÚNICA</span><strong>RotaOS oficial</strong><p>Atualizações são publicadas no endereço oficial do GitHub Pages.</p></div>
       <div className={`cloud-status ${userEmail ? "connected" : ""}`}><i /><div><strong>{userEmail ? "Banco conectado" : cloudReady ? "Banco pronto" : "Banco ainda não conectado"}</strong><small>{userEmail ?? (cloudReady ? "Clique em Entrar no topo" : "Modo demonstrativo local")}</small></div></div>
-      <div className="sidebar-actions">{cloudReady && <button className="secondary" onClick={() => userEmail ? void signOut().then(() => setUserEmail(null)) : setModal("login")}>{userEmail ? "Sair" : "Entrar"}</button>}{activeModule === "planning" ? <button className="secondary" onClick={() => setModal("import")}>Sincronizar Procesa</button> : <button className="secondary" onClick={() => importFileRef.current?.click()}>Importar XLSX</button>}</div>
+      <div className="sidebar-actions">{cloudReady && <button className="secondary" onClick={() => userEmail ? void handleSignOut() : setModal("login")}>{userEmail ? "Sair" : "Entrar"}</button>}{activeModule === "planning" ? <button className="secondary" onClick={() => setModal("import")}>Sincronizar Procesa</button> : <button className="secondary" onClick={() => importFileRef.current?.click()}>Importar XLSX</button>}</div>
       <span className={`sidebar-collapsed-status ${userEmail ? "connected" : ""}`} title={userEmail ? `Banco conectado: ${userEmail}` : "Banco não conectado"} />
     </aside>
 
@@ -750,7 +764,7 @@ export default function Home() {
 
     {modal === "suggestion" && explainedOrder && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><section className="modal suggestion-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal(null)}>×</button><p className="modal-kicker">SUGESTÃO #{suggestionRank[explainedOrder.id]}</p><h2>{explainedOrder.id}</h2><p>{explainedOrder.address} · {explainedOrder.neighborhood}</p><div className="suggestion-explanation">{suggestionReasons[explainedOrder.id]?.map((reason) => <span key={reason}>✓ {reason}</span>)}</div><div className="score-line"><span>Pontuação da sugestão</span><strong>{scores[explainedOrder.id]?.score ?? 0}</strong></div><p className="explanation-footnote">Essa pontuação apenas organiza as sugestões. A decisão final continua sendo da Camilla.</p></section></div>}
 
-    {modal === "login" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><form className="modal login-modal" onMouseDown={(event) => event.stopPropagation()} onSubmit={handleLogin}><button className="modal-close" type="button" onClick={() => setModal(null)}>×</button><p className="modal-kicker">BASE ONLINE</p><h2>Entrar no RotaOS</h2><p>Use o e-mail e a senha cadastrados no banco RotaOS. A senha do Procesa nunca é usada aqui.</p><label><span>E-mail</span><input type="email" required value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} /></label><label><span>Senha do RotaOS</span><input type="password" required value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} /></label>{loginError && <div className="modal-warning">{loginError}</div>}<button className="primary full" disabled={busy}>{busy ? "Entrando…" : "Entrar"}</button></form></div>}
+    {modal === "login" && <div className="modal-backdrop" onMouseDown={() => setModal(null)}><form className="modal login-modal" onMouseDown={(event) => event.stopPropagation()} onSubmit={handleLogin}><button className="modal-close" type="button" onClick={() => setModal(null)}>×</button><p className="modal-kicker">BASE ONLINE</p><h2>Entrar no RotaOS</h2><p>Use o e-mail e a senha cadastrados no banco RotaOS. A senha do Procesa nunca é usada aqui.</p><label><span>E-mail</span><input type="email" required value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} /></label><label><span>Senha do RotaOS</span><span className="password-input"><input type={showLoginPassword ? "text" : "password"} required value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} /><button type="button" onClick={() => setShowLoginPassword((current) => !current)} aria-label={showLoginPassword ? "Ocultar senha" : "Mostrar senha"} title={showLoginPassword ? "Ocultar senha" : "Mostrar senha"}>{showLoginPassword ? "◉" : "◌"}</button></span></label>{loginError && <div className="modal-warning">{loginError}</div>}<button className="primary full" disabled={busy}>{busy ? "Entrando…" : "Entrar"}</button></form></div>}
     {toast && <div className="toast" role="status">{toast}</div>}
   </main>;
 }
