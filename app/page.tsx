@@ -263,6 +263,7 @@ export default function Home() {
   const leafletMarkersRef = useRef<import("leaflet").LayerGroup | null>(null);
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [mapExpanded, setMapExpanded] = useState(false);
   const [geocodeProgress, setGeocodeProgress] = useState("");
 
   const cloudReady = isSupabaseConfigured();
@@ -478,6 +479,12 @@ export default function Home() {
     if (located.length === 1) map.setView([located[0].latitude as number, located[0].longitude as number], 15);
     if (located.length > 1) map.fitBounds(leaflet.latLngBounds(located.map((order) => [order.latitude as number, order.longitude as number])), { padding: [30, 30], maxZoom: 15 });
   }, [assignments, mapOrders, mapReady, teams]);
+
+  useEffect(() => {
+    if (!mapReady || !leafletMapRef.current) return;
+    const timer = window.setTimeout(() => leafletMapRef.current?.invalidateSize(), 50);
+    return () => window.clearTimeout(timer);
+  }, [mapExpanded, mapReady]);
 
   async function handleSpreadsheetFile(file: File) {
     if (!/\.xlsx$/i.test(file.name)) {
@@ -705,7 +712,7 @@ export default function Home() {
       <div className={routeCalculated ? "prototype-notice calculated" : "prototype-notice"}><span>{routeCalculated ? "✓" : "○"}</span><div><strong>{selected.size} chamados escolhidos manualmente</strong><p>A sugestão do RotaOS não marca nem desmarca estes chamados.</p></div><button className="overview-toggle" onClick={() => setGridFocus((current) => !current)}>{gridFocus ? "Mostrar visão completa" : "Focar base de chamados"}</button><button onClick={() => distribute(selected, "Seleção manual")}>Calcular rotas da seleção →</button></div>
 
       <section className="prototype-content-grid">
-        <article className="prototype-card prototype-map-card"><div className="prototype-section-heading"><div><h2>{suggested.size ? "Rotas dos chamados sugeridos" : "Visão geral das rotas"}</h2><p>{mapOrders.length} OS em análise{regionFilter !== "Todas" ? ` · ${regionFilter}` : ""}</p></div><span className="prototype-map-state">MAPA JUIZ DE FORA</span></div><div ref={mapContainerRef} className="prototype-map live-map" aria-label="Mapa de Juiz de Fora" /><div className="map-warning"><strong>{geocodeProgress || (activeModule === "spreadsheet" ? "Localize os endereços para validar a rota" : "Selecione ou sugira OS para analisar no mapa")}</strong><span>{activeModule === "spreadsheet" ? "A localização usa o endereço informado pela CESAMA e fica salva para as próximas consultas." : "O mapa exibe os pontos das OS selecionadas ou sugeridas."}</span>{activeModule === "spreadsheet" && <button className="map-locate-button" disabled={busy || !mapOrders.length} onClick={() => void locateSpreadsheetOrders()}>{busy ? "Localizando…" : "Localizar endereços"}</button>}</div></article>
+        <article className={mapExpanded ? "prototype-card prototype-map-card map-expanded" : "prototype-card prototype-map-card"}><div className="prototype-section-heading"><div><h2>{suggested.size ? "Rotas dos chamados sugeridos" : "Visão geral das rotas"}</h2><p>{mapOrders.length} OS em análise{regionFilter !== "Todas" ? ` · ${regionFilter}` : ""}</p></div><div className="map-heading-actions"><span className="prototype-map-state">MAPA JUIZ DE FORA</span><button className="map-expand-button" onClick={() => setMapExpanded((current) => !current)}>{mapExpanded ? "Fechar mapa" : "Ampliar mapa"}</button></div></div><div ref={mapContainerRef} className="prototype-map live-map" aria-label="Mapa de Juiz de Fora" /><div className="map-warning"><strong>{geocodeProgress || (activeModule === "spreadsheet" ? "Localize os endereços para validar a rota" : "Selecione ou sugira OS para analisar no mapa")}</strong><span>{activeModule === "spreadsheet" ? "A localização usa o endereço informado pela CESAMA e fica salva para as próximas consultas." : "O mapa exibe os pontos das OS selecionadas ou sugeridas."}</span>{activeModule === "spreadsheet" && <button className="map-locate-button" disabled={busy || !mapOrders.length} onClick={() => void locateSpreadsheetOrders()}>{busy ? "Localizando…" : "Localizar endereços"}</button>}</div></article>
         <aside className="prototype-card prototype-team-panel"><div className="prototype-section-heading"><div><h2>Equipes</h2><p>Serviços e capacidade diária</p></div><button className="prototype-icon-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>⚙</button></div><div className="prototype-team-list">{activeTeams.map((team, index) => <button key={team.id} className={teamFilter === team.id ? "prototype-team-row active" : "prototype-team-row"} onClick={() => setTeamFilter(teamFilter === team.id ? "Todas" : team.id)}><span className="prototype-team-number" style={{ background: team.color }}>{index + 1}</span><div><strong>{team.name}</strong><span>{team.services.join(" + ")}</span></div><small>{teamCounts[team.id] ?? 0}/{team.capacity}</small><b>›</b></button>)}</div><div className="prototype-team-actions"><button className="prototype-outline-full" onClick={() => setTeamFilter("Todas")}>Todas as equipes</button><button className="prototype-settings-button" onClick={() => { setDraftTeams(teams.map((team) => ({ ...team, services: [...team.services] }))); setModal("teams"); }}>⚙</button></div></aside>
       </section>
 
